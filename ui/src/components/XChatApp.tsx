@@ -6,6 +6,7 @@ import { useAccount, usePublicClient } from 'wagmi';
 import { useEthersSigner } from '../hooks/useEthersSigner';
 import { useZamaInstance } from '../hooks/useZamaInstance';
 import { useToast } from './Toast';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 type GroupItem = { id: number; name: string; owner: string; createdAt: bigint; memberCount: bigint; member: boolean };
 
@@ -60,6 +61,7 @@ function ChatList(props: {
         <h1 style={{ margin: 0, fontSize: 'var(--text-xl)', fontWeight: '600' }}>
           XChat
         </h1>
+
         <button
           onClick={onCreateGroup}
           style={{
@@ -78,6 +80,7 @@ function ChatList(props: {
         >
           ➕
         </button>
+        <ConnectButton />
       </div>
 
       {/* Chat list */}
@@ -361,7 +364,7 @@ export function XChatApp() {
         return { id, name, owner, createdAt, memberCount, member };
       }));
       setAllGroups(list);
-    } catch {}
+    } catch { }
   }
 
   useEffect(() => { refreshGroups(); }, [address]);
@@ -398,9 +401,9 @@ export function XChatApp() {
               newId = Number(parsed.args.groupId);
               break;
             }
-          } catch {}
+          } catch { }
         }
-      } catch {}
+      } catch { }
       setShowCreateModal(false);
       await refreshGroups();
       if (newId != null) {

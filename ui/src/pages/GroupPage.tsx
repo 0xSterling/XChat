@@ -6,6 +6,7 @@ import { useAccount, usePublicClient } from 'wagmi';
 import { useEthersSigner } from '../hooks/useEthersSigner';
 import { useZamaInstance } from '../hooks/useZamaInstance';
 import { decryptMessage, encryptMessage, deriveAesKeyFromAddress } from '../hooks/crypto';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 type MessageEvent = {
   id: string;
@@ -343,6 +344,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
           >
             {groupKey ? '🔓' : '🔐'}
           </button>
+          <ConnectButton />
         </div>
       </div>
 
