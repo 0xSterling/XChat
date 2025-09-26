@@ -5,6 +5,7 @@ import { XCHAT_ADDRESS, XCHAT_ABI } from '../config/contracts';
 import { useAccount, usePublicClient } from 'wagmi';
 import { useEthersSigner } from '../hooks/useEthersSigner';
 import { useZamaInstance } from '../hooks/useZamaInstance';
+import { useToast } from './Toast';
 
 type GroupItem = { id: number; name: string; owner: string; createdAt: bigint; memberCount: bigint; member: boolean };
 
@@ -14,6 +15,7 @@ function ChatList(props: {
   onCreateGroup: () => void;
 }) {
   const { allGroups, onOpen, onCreateGroup } = props;
+  const { show } = useToast();
 
   function colorFromAddress(addr: string) {
     let h = 0;
@@ -86,7 +88,7 @@ function ChatList(props: {
               key={group.id}
               onClick={() => {
                 if (group.name.includes('Invited Only')) {
-                  alert('Invited Only');
+                  show('Invited Only');
                   return;
                 }
                 onOpen(group.id);
