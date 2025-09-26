@@ -215,11 +215,13 @@ export function GroupPage({ groupId }: { groupId: number }) {
       const amount = 10n * (10n ** 6n); // 10 XCOIN with 6 decimals
       buffer.add64(amount);
       const enc = await buffer.encrypt();
-      const tx = await token.confidentialTransfer(groupInfo.owner, enc.handles[0], enc.inputProof);
+      const fn = token.getFunction("confidentialTransfer(address,bytes32,bytes)");
+      const tx = await fn(groupInfo.owner, enc.handles[0], enc.inputProof);
       await tx.wait();
       show('Donation sent');
       setShowDonate(false);
     } catch (e: any) {
+      console.log("donate fail:",e);
       show(e?.message || 'Donation failed');
     } finally {
       setDonating(false);
@@ -590,7 +592,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
               </div>
             )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowDonate(false)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'white', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => setShowDonate(false)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'red', cursor: 'pointer' }}>Cancel</button>
               <button onClick={donate} disabled={donating || !XCOIN_ADDRESS} style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'var(--color-whatsapp-green)', color: 'white', cursor: 'pointer' }}>
                 {donating ? 'Sending...' : 'Confirm'}
               </button>
