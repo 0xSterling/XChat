@@ -143,6 +143,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
       show("Join Group First")
       return
     }
+    show("Decrypting...")
     setKeyStatus('Loading...');
     try {
       const handle = await viemClient.readContract({
@@ -189,6 +190,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
     if (!message || !signerPromise) return;
     if (!groupKey) { alert('请先load key用来加密信息'); return; }
     setSending(true);
+    show("Sending...")
     try {
       const blob = await encryptMessage(groupKey, message);
       const signer = await signerPromise;
