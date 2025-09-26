@@ -1,118 +1,56 @@
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
 
-task("xchat:createGroup")
+/**
+ * Utilities for XChat
+ */
+
+task("xchat:address", "Prints the XChat address").setAction(async function (_: TaskArguments, hre) {
+  const { deployments } = hre;
+  const xchat = await deployments.get("XChat");
+  console.log(`XChat address: ${xchat.address}`);
+});
+
+task("xchat:create", "Create a group with name and encrypted address password")
   .addParam("name", "Group name")
-  .setDescription("Create a new group")
-  .setAction(async function (taskArguments: TaskArguments, { ethers, deployments }) {
-    const { name } = taskArguments;
+  .setAction(async function (args: TaskArguments, hre) {
+    const { ethers, deployments, fhevm } = hre;
+
+    await fhevm.initializeCLIApi();
+
+    const dep = await deployments.get("XChat");
     const signers = await ethers.getSigners();
-    const deployer = signers[0];
+    const creator = signers[0];
+    const contract = await ethers.getContractAt("XChat", dep.address);
 
-    const xchatDeployment = await deployments.get("XChat");
-    const xchat = await ethers.getContractAt("XChat", xchatDeployment.address);
+    // Generate a random address-formatted password
+    const wallet = ethers.Wallet.createRandom();
+    const password = wallet.address;
+    console.log(`Generated password (address): ${password}`);
 
-    console.log(`Creating group "${name}" with deployer: ${deployer.address}`);
+    const encrypted = await fhevm
+      .createEncryptedInput(dep.address, creator.address)
+      .addAddress(password)
+      .encrypt();
 
-    const tx = await xchat.connect(deployer).createGroup(name);
-    const receipt = await tx.wait();
-    
-    if (receipt?.logs) {
-      const groupCreatedEvent = receipt.logs.find((log: any) => {
-        try {
-          const parsedLog = xchat.interface.parseLog({
-            topics: log.topics,
-            data: log.data,
-          });
-          return parsedLog && parsedLog.name === "GroupCreated";
-        } catch {
-          return false;
-        }
-      });
-
-      if (groupCreatedEvent) {
-        const parsedLog = xchat.interface.parseLog({
-          topics: groupCreatedEvent.topics,
-          data: groupCreatedEvent.data,
-        });
-        console.log(`Group created successfully! Group ID: ${parsedLog?.args[0]}`);
-      }
-    }
-  });
-
-task("xchat:joinGroup")
-  .addParam("groupid", "Group ID to join", undefined, undefined, true)
-  .setDescription("Join an existing group")
-  .setAction(async function (taskArguments: TaskArguments, { ethers, deployments }) {
-    const { groupid } = taskArguments;
-    const signers = await ethers.getSigners();
-    const deployer = signers[0];
-
-    const xchatDeployment = await deployments.get("XChat");
-    const xchat = await ethers.getContractAt("XChat", xchatDeployment.address);
-
-    console.log(`Joining group ${groupid} with address: ${deployer.address}`);
-
-    const tx = await xchat.connect(deployer).joinGroup(parseInt(groupid));
+    const tx = await contract
+      .connect(creator)
+      .createGroup(args.name, encrypted.handles[0], encrypted.inputProof);
+    console.log(`createGroup tx: ${tx.hash}`);
     await tx.wait();
-    
-    console.log(`Successfully joined group ${groupid}!`);
+    console.log(`Group created.`);
   });
 
-task("xchat:getGroupInfo")
-  .addParam("groupid", "Group ID", undefined, undefined, true)
-  .setDescription("Get group information")
-  .setAction(async function (taskArguments: TaskArguments, { ethers, deployments }) {
-    const { groupid } = taskArguments;
-
-    const xchatDeployment = await deployments.get("XChat");
-    const xchat = await ethers.getContractAt("XChat", xchatDeployment.address);
-
-    console.log(`Getting info for group ${groupid}`);
-
-    const groupInfo = await xchat.getGroupInfo(parseInt(groupid));
-    
-    console.log(`Group Name: ${groupInfo[0]}`);
-    console.log(`Creator: ${groupInfo[1]}`);
-    console.log(`Member Count: ${groupInfo[2]}`);
-    console.log(`Message Count: ${groupInfo[3]}`);
+task("xchat:join", "Join a group")
+  .addParam("id", "Group id")
+  .setAction(async function (args: TaskArguments, hre) {
+    const { ethers, deployments } = hre;
+    const dep = await deployments.get("XChat");
+    const [signer] = await ethers.getSigners();
+    const contract = await ethers.getContractAt("XChat", dep.address);
+    const tx = await contract.connect(signer).joinGroup(args.id);
+    console.log(`joinGroup tx: ${tx.hash}`);
+    await tx.wait();
+    console.log(`Joined group ${args.id}`);
   });
 
-task("xchat:getGroupMembers")
-  .addParam("groupid", "Group ID", undefined, undefined, true)
-  .setDescription("Get group members")
-  .setAction(async function (taskArguments: TaskArguments, { ethers, deployments }) {
-    const { groupid } = taskArguments;
-
-    const xchatDeployment = await deployments.get("XChat");
-    const xchat = await ethers.getContractAt("XChat", xchatDeployment.address);
-
-    console.log(`Getting members for group ${groupid}`);
-
-    const members = await xchat.getGroupMembers(parseInt(groupid));
-    
-    console.log(`Group Members (${members.length}):`);
-    members.forEach((member: string, index: number) => {
-      console.log(`  ${index + 1}. ${member}`);
-    });
-  });
-
-task("xchat:getTotalGroups")
-  .setDescription("Get total number of groups")
-  .setAction(async function (taskArguments: TaskArguments, { ethers, deployments }) {
-    const xchatDeployment = await deployments.get("XChat");
-    const xchat = await ethers.getContractAt("XChat", xchatDeployment.address);
-
-    const totalGroups = await xchat.getTotalGroups();
-    console.log(`Total Groups: ${totalGroups}`);
-  });
-
-task("xchat:getTotalMessages")
-  .setDescription("Get total number of messages")
-  .setAction(async function (taskArguments: TaskArguments, { ethers, deployments }) {
-    const xchatDeployment = await deployments.get("XChat");
-    const xchat = await ethers.getContractAt("XChat", xchatDeployment.address);
-
-    const totalMessages = await xchat.getTotalMessages();
-    console.log(`Total Messages: ${totalMessages}`);
-  });
