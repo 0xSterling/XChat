@@ -64,28 +64,37 @@ function ChatList(props: {
           XChat
         </h1>
 
-        <button
-          onClick={onCreateGroup}
-          style={{
-            background: 'rgba(255,255,255,0.1)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '50%',
-            width: '2.5rem',
-            height: '2.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all var(--transition-fast)'
-          }}
-        >
-          ➕
-        </button>
-        <div className={`fhe-badge ${fheReady ? 'ready' : 'loading'}`}>
-          {fheReady ? 'FHE Ready' : 'FHE loading...'}
+        {/* Right side controls */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-3)'
+        }}>
+          <div className={`fhe-badge ${fheReady ? 'ready' : 'loading'}`}>
+            {fheReady ? 'FHE Ready' : 'FHE loading...'}
+          </div>
+
+          <button
+            onClick={onCreateGroup}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50%',
+              width: '2.5rem',
+              height: '2.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'all var(--transition-fast)'
+            }}
+          >
+            ➕
+          </button>
+
+          <ConnectButton />
         </div>
-        <ConnectButton />
       </div>
 
       {/* Chat list */}

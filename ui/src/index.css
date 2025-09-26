@@ -236,6 +236,40 @@ input::placeholder, textarea::placeholder {
 .mt-4 { margin-top: var(--space-4); }
 .mt-6 { margin-top: var(--space-6); }
 
+/* FHE Badge */
+.fhe-badge {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  transition: all var(--transition-fast);
+  border: 2px solid rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: var(--shadow-sm);
+}
+
+.fhe-badge.loading {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: #ffffff;
+  animation: pulse 1.5s infinite;
+  border-color: rgba(255,255,255,0.8);
+  box-shadow: 0 0 10px rgba(255,152,0,0.3);
+}
+
+.fhe-badge.ready {
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  color: #ffffff;
+  font-weight: 700;
+  border-color: rgba(255,255,255,0.8);
+  box-shadow: 0 0 10px rgba(76,175,80,0.3);
+}
+
+.fhe-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 15px rgba(255,255,255,0.3);
+}
+
 /* Animations */
 @keyframes spin {
   from { transform: rotate(0deg); }
@@ -281,6 +315,7 @@ input::placeholder, textarea::placeholder {
     display: none;
   }
 
+
   /* Show on mobile, hide on desktop */
   .show-mobile {
     display: inline;
@@ -312,6 +347,7 @@ input::placeholder, textarea::placeholder {
   .hidden-mobile {
     display: inline;
   }
+
 }
 
 @media (max-width: 640px) {
@@ -324,4 +360,10 @@ input::placeholder, textarea::placeholder {
   .text-3xl { font-size: var(--text-xl); }
   .text-2xl { font-size: var(--text-lg); }
   .text-xl { font-size: var(--text-base); }
+
+  /* Smaller FHE badge on mobile */
+  .fhe-badge {
+    font-size: 0.6rem;
+    padding: var(--space-1) var(--space-2);
+  }
 }
