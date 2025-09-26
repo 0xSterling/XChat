@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPublicClient, http } from 'viem';
-import { sepolia } from 'viem/chains';
+import { type PublicClient } from 'viem';
 import { ethers } from 'ethers';
 import { XCHAT_ADDRESS, XCHAT_ABI } from '../config/contracts';
-import { useAccount } from 'wagmi';
+import { useAccount, usePublicClient } from 'wagmi';
 import { useEthersSigner } from '../hooks/useEthersSigner';
 import { useZamaInstance } from '../hooks/useZamaInstance';
 import { decryptMessage, encryptMessage, deriveAesKeyFromAddress } from '../hooks/crypto';
@@ -29,7 +28,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
 
-  const viemClient = useMemo(() => createPublicClient({ chain: sepolia, transport: http() }), []);
+  const viemClient = usePublicClient() as PublicClient;
 
   async function loadHeaderAndMembership() {
     const [name, owner, createdAt, memberCount] = await viemClient.readContract({
@@ -52,32 +51,37 @@ export function GroupPage({ groupId }: { groupId: number }) {
   }
 
   async function loadHistory() {
-    const latest = await viemClient.getBlockNumber();
-    const from = latest > 200000n ? latest - 200000n : 0n;
-    const logs = await viemClient.getLogs({
-      address: XCHAT_ADDRESS as `0x${string}`,
-      event: {
-        type: 'event',
-        name: 'MessageSent',
-        inputs: [
-          { indexed: true, name: 'groupId', type: 'uint256' },
-          { indexed: true, name: 'sender', type: 'address' },
-          { indexed: false, name: 'ciphertext', type: 'string' },
-          { indexed: false, name: 'timestamp', type: 'uint256' },
-        ],
-      } as const,
-      fromBlock: from,
-      toBlock: 'latest',
-    });
-    const parsed = (logs as any[])
-      .filter(l => Number(l.args.groupId) === groupId)
-      .map(l => ({ id: `${l.transactionHash}:${l.logIndex}`, args: l.args })) as MessageEvent[];
-    // de-dup on full reload
-    const uniq: MessageEvent[] = [];
-    const ns = new Set(seen.current);
-    for (const ev of parsed) { if (!ns.has(ev.id)) { ns.add(ev.id); uniq.push(ev); } }
-    seen.current = ns;
-    setEvents(uniq);
+    try {
+      // Read stored messages directly from contract storage
+      const count = (await viemClient.readContract({
+        address: XCHAT_ADDRESS as `0x${string}`,
+        abi: XCHAT_ABI as any,
+        functionName: 'getMessageCount',
+        args: [BigInt(groupId)],
+      })) as bigint;
+      if (count === 0n) { setEvents([]); return; }
+      const max = 100n; // fetch last up to 100 messages
+      const offset = count > max ? count - max : 0n;
+      const limit = count - offset;
+      const [senders, ciphertexts, timestamps] = (await viemClient.readContract({
+        address: XCHAT_ADDRESS as `0x${string}`,
+        abi: XCHAT_ABI as any,
+        functionName: 'getMessages',
+        args: [BigInt(groupId), offset, limit],
+      })) as [string[], string[], bigint[]];
+
+      const parsed: MessageEvent[] = [];
+      const ns = new Set(seen.current);
+      for (let i = 0; i < senders.length; i++) {
+        const id = `stored:${Number(offset) + i}`;
+        const ev: MessageEvent = { id, args: { groupId: BigInt(groupId), sender: senders[i] as `0x${string}`, ciphertext: ciphertexts[i], timestamp: timestamps[i] } };
+        if (!ns.has(id)) { ns.add(id); parsed.push(ev); }
+      }
+      seen.current = ns;
+      setEvents(parsed);
+    } catch (e) {
+      setEvents([]);
+    }
   }
 
   useEffect(() => { loadHeaderAndMembership(); loadHistory(); }, [address, groupId]);
@@ -85,23 +89,22 @@ export function GroupPage({ groupId }: { groupId: number }) {
   useEffect(() => {
     let unwatch: (() => void) | null = null;
     (async () => {
-      unwatch = await viemClient.watchEvent({
+      unwatch = await viemClient.watchContractEvent({
         address: XCHAT_ADDRESS as `0x${string}`,
-        event: {
-          type: 'event', name: 'MessageSent', inputs: [
-            { indexed: true, name: 'groupId', type: 'uint256' },
-            { indexed: true, name: 'sender', type: 'address' },
-            { indexed: false, name: 'ciphertext', type: 'string' },
-            { indexed: false, name: 'timestamp', type: 'uint256' },
-          ] } as const,
+        abi: XCHAT_ABI as any,
+        eventName: 'MessageSent',
         onLogs: (logs: any[]) => {
-          const filtered = logs
-            .filter((l) => Number(l.args.groupId) === groupId)
-            .map((l) => ({ id: `${l.transactionHash}:${l.logIndex}`, args: l.args }));
+          const filtered = logs.filter((l) => Number(l.args.groupId) === groupId);
           if (!filtered.length) return;
           const ns = new Set(seen.current);
           const add: MessageEvent[] = [];
-          for (const ev of filtered) { if (!ns.has(ev.id)) { ns.add(ev.id); add.push(ev); } }
+          for (const l of filtered) {
+            const key = `${l.args.sender}|${l.args.ciphertext}|${String(l.args.timestamp)}`;
+            if (!ns.has(key)) {
+              ns.add(key);
+              add.push({ id: key, args: l.args });
+            }
+          }
           if (add.length) {
             seen.current = ns;
             setEvents((prev) => [...prev, ...add]);

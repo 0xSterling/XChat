@@ -1,12 +1,78 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from './Header';
-import { createPublicClient, http } from 'viem';
-import { sepolia } from 'viem/chains';
+import { type PublicClient } from 'viem';
 import { ethers } from 'ethers';
 import { XCHAT_ADDRESS, XCHAT_ABI } from '../config/contracts';
-import { useAccount } from 'wagmi';
+import { useAccount, usePublicClient } from 'wagmi';
 import { useEthersSigner } from '../hooks/useEthersSigner';
 import { useZamaInstance } from '../hooks/useZamaInstance';
+
+type GroupItem = { id: number; name: string; owner: string; createdAt: bigint; memberCount: bigint; member: boolean };
+
+function GroupList(props: {
+  activeTab: 'groups' | 'create' | 'my';
+  setActiveTab: (t: 'groups' | 'create' | 'my') => void;
+  allGroups: GroupItem[];
+  myGroups: { id: number; name: string }[];
+  onOpen: (id: number) => void;
+  onJoin: (id: number) => Promise<void>;
+  groupName: string;
+  setGroupName: (v: string) => void;
+  onCreate: () => Promise<void>;
+  createBusy: boolean;
+}) {
+  const { activeTab, setActiveTab, allGroups, myGroups, onOpen, onJoin, groupName, setGroupName, onCreate, createBusy } = props;
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        <button onClick={() => setActiveTab('groups')}>Groups</button>
+        <button onClick={() => setActiveTab('create')}>Create Group</button>
+        <button onClick={() => setActiveTab('my')}>My Groups</button>
+      </div>
+      {activeTab === 'groups' && (
+        <div>
+          <h2>Groups</h2>
+          <div>
+            {allGroups.map(g => (
+              <div key={g.id} style={{ borderBottom: '1px solid #eee', padding: '8px 0', display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div><strong>#{g.id}</strong> {g.name}</div>
+                  <div style={{ color: '#666', fontSize: 12 }}>owner {g.owner} • members {g.memberCount.toString()}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => onOpen(g.id)}>Open</button>
+                  <button onClick={() => onJoin(g.id)}>Join</button>
+                </div>
+              </div>
+            ))}
+            {allGroups.length === 0 && <div style={{ color: '#888' }}>No groups yet.</div>}
+          </div>
+        </div>
+      )}
+      {activeTab === 'create' && (
+        <div>
+          <h2>Create Group</h2>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input placeholder="Group name" value={groupName} onChange={(e)=>setGroupName(e.target.value)} style={{ padding: 8, border: '1px solid #ddd', borderRadius: 6 }}/>
+            <button onClick={onCreate} disabled={!groupName || createBusy}>Create</button>
+          </div>
+        </div>
+      )}
+      {activeTab === 'my' && (
+        <div>
+          <h2>My Groups</h2>
+          {myGroups.map(g => (
+            <div key={g.id} style={{ padding: '8px 0', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div><strong>#{g.id}</strong> {g.name}</div>
+              <button onClick={()=> onOpen(g.id)}>Open</button>
+            </div>
+          ))}
+          {myGroups.length === 0 && <div style={{ color: '#888' }}>No joined groups.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function XChatApp() {
   const { address, isConnected } = useAccount();
@@ -21,7 +87,7 @@ export function XChatApp() {
   const [allGroups, setAllGroups] = useState<Array<{ id: number; name: string; owner: string; createdAt: bigint; memberCount: bigint; member: boolean }>>([]);
   const [myGroups, setMyGroups] = useState<Array<{ id: number; name: string }>>([]);
 
-  const viemClient = useMemo(() => createPublicClient({ chain: sepolia, transport: http() }), []);
+  const viemClient = usePublicClient() as PublicClient;
 
   async function refreshGroups() {
     try {
@@ -99,58 +165,7 @@ export function XChatApp() {
   };
   // No message decryption on the list page
 
-  function GroupList() {
-    return (
-      <div>
-        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-          <button onClick={() => setActiveTab('groups')}>Groups</button>
-          <button onClick={() => setActiveTab('create')}>Create Group</button>
-          <button onClick={() => setActiveTab('my')}>My Groups</button>
-        </div>
-        {activeTab === 'groups' && (
-          <div>
-            <h2>Groups</h2>
-            <div>
-              {allGroups.map(g => (
-                <div key={g.id} style={{ borderBottom: '1px solid #eee', padding: '8px 0', display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div><strong>#{g.id}</strong> {g.name}</div>
-                    <div style={{ color: '#666', fontSize: 12 }}>owner {g.owner} • members {g.memberCount.toString()}</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => { window.location.hash = `#/group/${g.id}`; }}>Open</button>
-                    <button onClick={async () => { await joinGroup(g.id); await refreshGroups(); }}>Join</button>
-                  </div>
-                </div>
-              ))}
-              {allGroups.length === 0 && <div style={{ color: '#888' }}>No groups yet.</div>}
-            </div>
-          </div>
-        )}
-        {activeTab === 'create' && (
-          <div>
-            <h2>Create Group</h2>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input placeholder="Group name" value={groupName} onChange={(e)=>setGroupName(e.target.value)} style={{ padding: 8, border: '1px solid #ddd', borderRadius: 6 }}/>
-              <button onClick={async()=>{ await createGroup(); await refreshGroups(); }} disabled={!groupName || createBusy}>Create</button>
-            </div>
-          </div>
-        )}
-        {activeTab === 'my' && (
-          <div>
-            <h2>My Groups</h2>
-            {myGroups.map(g => (
-              <div key={g.id} style={{ padding: '8px 0', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div><strong>#{g.id}</strong> {g.name}</div>
-                <button onClick={()=>{ window.location.hash = `#/group/${g.id}`; }}>Open</button>
-              </div>
-            ))}
-            {myGroups.length === 0 && <div style={{ color: '#888' }}>No joined groups.</div>}
-          </div>
-        )}
-      </div>
-    );
-  }
+  const openGroup = (id: number) => { window.location.hash = `#/group/${id}`; };
 
   // Detail page moved to GroupPage
 
@@ -158,7 +173,18 @@ export function XChatApp() {
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
       <Header />
       <main style={{ padding: 16 }}>
-        <GroupList />
+        <GroupList
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          allGroups={allGroups}
+          myGroups={myGroups}
+          onOpen={openGroup}
+          onJoin={async (id:number)=>{ await joinGroup(id); await refreshGroups(); }}
+          groupName={groupName}
+          setGroupName={setGroupName}
+          onCreate={async()=>{ await createGroup(); await refreshGroups(); }}
+          createBusy={createBusy}
+        />
       </main>
     </div>
   );
