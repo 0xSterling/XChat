@@ -58,6 +58,15 @@ export function WalletFloat() {
     if (!fhe || !address || !encBal || !XCOIN_ADDRESS || !signerPromise) return;
     try {
       setBusy(true);
+
+      // Optimization: if encrypted balance is all zeros, directly return 0
+      const zeroEncrypted = '0x0000000000000000000000000000000000000000000000000000000000000000';
+      if (encBal === zeroEncrypted || encBal === '0x00' || encBal === '0x0') {
+        setDecBal('0');
+        show('Balance is 0 (optimized)');
+        return;
+      }
+
       show('Decrypting balance...');
       const keyPair = fhe.generateKeypair();
       const startTimeStamp = Math.floor(Date.now() / 1000).toString();
@@ -164,12 +173,9 @@ export function WalletFloat() {
           <div style={{ marginBottom: 10 }}>{short(address)}</div>
 
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Token</div>
-          <div style={{ marginBottom: 10 }}>{sym} (decimals: {decimals})</div>
+          <div style={{ marginBottom: 10 }}>{sym}</div>
 
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Encrypted balance</div>
-          <div style={{ wordBreak: 'break-all', fontFamily: 'monospace', fontSize: 12, marginBottom: 8 }}>
-            {encBal || '–'}
-          </div>
+          <div style={{ fontSize: 15, color: 'var(--color-text-muted)' }}>Balance : {decBal ? `${decBal} ${sym}` : '*** XCoin'}</div>
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -204,8 +210,8 @@ export function WalletFloat() {
             </button>
           </div>
 
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>Decrypted</div>
-          <div style={{ marginBottom: 4 }}>{decBal ? `${decBal} ${sym}` : '–'}</div>
+          {/* <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>Decrypted</div>
+          <div style={{ marginBottom: 4 }}>{decBal ? `${decBal} ${sym}` : '–'}</div> */}
         </div>
       )}
     </>
