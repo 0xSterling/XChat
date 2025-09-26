@@ -124,7 +124,7 @@ export function WalletFloat() {
         style={{
           position: 'fixed',
           right: '20px',
-          bottom: '20px',
+          bottom: '50px',
           width: '56px',
           height: '56px',
           borderRadius: '50%',
