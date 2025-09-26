@@ -70,7 +70,7 @@ function ChatList(props: {
           alignItems: 'center',
           gap: 'var(--space-3)'
         }}>
-          <div className={`fhe-badge ${fheReady ? 'ready' : 'loading'}`}>
+          <div className={`fhe-badge ${fheReady ? 'ready' : 'loading'}`} onClick={() => show("Powered By Zama")}>
             {fheReady ? 'FHE Ready' : 'FHE loading...'}
           </div>
 

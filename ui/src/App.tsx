@@ -8,6 +8,7 @@ import { config } from './config/wagmi';
 import { XChatApp } from './components/XChatApp';
 import { GroupPage } from './pages/GroupPage';
 import { ToastProvider } from './components/Toast';
+import { WalletFloat } from './components/WalletFloat';
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ function App() {
           <ToastProvider>
             <div style={{ minHeight: '100vh' }}>
               {route.name === 'home' ? <XChatApp /> : <GroupPage groupId={route.id} />}
+              <WalletFloat />
             </div>
           </ToastProvider>
         </RainbowKitProvider>
