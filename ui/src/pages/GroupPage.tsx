@@ -7,6 +7,7 @@ import { useEthersSigner } from '../hooks/useEthersSigner';
 import { useZamaInstance } from '../hooks/useZamaInstance';
 import { decryptMessage, encryptMessage, deriveAesKeyFromAddress } from '../hooks/crypto';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useToast } from '../components/Toast';
 
 type MessageEvent = {
   id: string;
@@ -17,7 +18,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
   const { address, isConnected } = useAccount();
   const { instance: fhe } = useZamaInstance();
   const signerPromise = useEthersSigner();
-
+  const { show } = useToast();
   const [groupInfo, setGroupInfo] = useState<{ name: string; owner: `0x${string}`; createdAt: bigint; memberCount: bigint } | null>(null);
   const [isMember, setIsMember] = useState(false);
   const [msgs, setMsgs] = useState<MessageEvent[]>([]);
@@ -138,6 +139,10 @@ export function GroupPage({ groupId }: { groupId: number }) {
 
   const loadKey = async () => {
     if (!isConnected || !address || !fhe || !signerPromise) return;
+    if (!isMember) {
+      show("Join Group First")
+      return
+    }
     setKeyStatus('Loading...');
     try {
       const handle = await viemClient.readContract({
