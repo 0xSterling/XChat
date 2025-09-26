@@ -20,7 +20,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
 
   const [groupInfo, setGroupInfo] = useState<{ name: string; owner: `0x${string}`; createdAt: bigint; memberCount: bigint } | null>(null);
   const [isMember, setIsMember] = useState(false);
-  const [events, setEvents] = useState<MessageEvent[]>([]);
+  const [msgs, setMsgs] = useState<MessageEvent[]>([]);
   const seen = useRef<Set<string>>(new Set());
 
   const [groupKey, setGroupKey] = useState<CryptoKey | null>(null);
@@ -38,7 +38,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
       args: [BigInt(groupId)],
     }) as [string, `0x${string}`, bigint, bigint];
     setGroupInfo({ name, owner, createdAt, memberCount });
-
+    console.log('[Group] header', { groupId, name, owner, createdAt: Number(createdAt), memberCount: Number(memberCount) });
     if (address) {
       const m = await viemClient.readContract({
         address: XCHAT_ADDRESS as `0x${string}`,
@@ -47,6 +47,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
         args: [BigInt(groupId), address as `0x${string}`],
       }) as boolean;
       setIsMember(m);
+      console.log('[Group] membership', { address, member: m });
     } else setIsMember(false);
   }
 
@@ -59,28 +60,37 @@ export function GroupPage({ groupId }: { groupId: number }) {
         functionName: 'getMessageCount',
         args: [BigInt(groupId)],
       })) as bigint;
-      if (count === 0n) { setEvents([]); return; }
+      console.log('[Group] getMessageCount', { groupId, count: Number(count) });
+      if (count === 0n) { setMsgs([]); return; }
       const max = 100n; // fetch last up to 100 messages
       const offset = count > max ? count - max : 0n;
       const limit = count - offset;
+      console.log('[Group] getMessages params', { offset: Number(offset), limit: Number(limit) });
       const [senders, ciphertexts, timestamps] = (await viemClient.readContract({
         address: XCHAT_ADDRESS as `0x${string}`,
         abi: XCHAT_ABI as any,
         functionName: 'getMessages',
         args: [BigInt(groupId), offset, limit],
       })) as [string[], string[], bigint[]];
+      console.log('[Group] getMessages result', { senders: senders.length, ciphertexts: ciphertexts.length, timestamps: timestamps.length });
 
-      const parsed: MessageEvent[] = [];
-      const ns = new Set(seen.current);
+      // Rebuild the full history from storage on every call
+      const mapped: MessageEvent[] = [];
+      const ns = new Set<string>();
       for (let i = 0; i < senders.length; i++) {
-        const id = `stored:${Number(offset) + i}`;
-        const ev: MessageEvent = { id, args: { groupId: BigInt(groupId), sender: senders[i] as `0x${string}`, ciphertext: ciphertexts[i], timestamp: timestamps[i] } };
-        if (!ns.has(id)) { ns.add(id); parsed.push(ev); }
+        const args = { groupId: BigInt(groupId), sender: senders[i] as `0x${string}`, ciphertext: ciphertexts[i], timestamp: timestamps[i] };
+        const key = `${args.sender}|${args.ciphertext}|${String(args.timestamp)}`;
+        ns.add(key);
+        mapped.push({ id: key, args });
       }
+      // Seed dedup set with everything we have from storage so the event watcher won't duplicate
       seen.current = ns;
-      setEvents(parsed);
+      setMsgs(mapped);
+      // Immediately show placeholders to avoid empty state flicker
+      setRendered(mapped.map((ev) => ({ sender: ev.args.sender, text: '***' })));
     } catch (e) {
-      setEvents([]);
+      console.error('[Group] loadHistory error', e);
+      setMsgs([]);
     }
   }
 
@@ -103,11 +113,12 @@ export function GroupPage({ groupId }: { groupId: number }) {
             if (!ns.has(key)) {
               ns.add(key);
               add.push({ id: key, args: l.args });
+              console.log('[Group] new event', { sender: l.args.sender, ts: String(l.args.timestamp) });
             }
           }
           if (add.length) {
             seen.current = ns;
-            setEvents((prev) => [...prev, ...add]);
+            setMsgs((prev) => [...prev, ...add]);
           }
         },
       });
@@ -122,6 +133,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
     const tx = await contract.joinGroup(groupId);
     await tx.wait();
     await loadHeaderAndMembership();
+    await loadHistory();
   };
 
   const loadKey = async () => {
@@ -162,9 +174,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
       const key = await deriveAesKeyFromAddress(clearAddr);
       setGroupKey(key);
       setKeyStatus('Key loaded');
-      // Re-decrypt all loaded messages after key is available
-      last.current = 0;
-      setRendered([]);
+      // Decryption effect will re-render messages with plaintext
     } catch (e: any) {
       setKeyStatus(e?.message || 'Failed to load key');
     }
@@ -181,31 +191,31 @@ export function GroupPage({ groupId }: { groupId: number }) {
       const tx = await contract.sendMessage(groupId, JSON.stringify(blob));
       await tx.wait();
       setMessage('');
+      await loadHistory();
     } finally { setSending(false); }
   };
 
   // Render decrypted or redacted
   const [rendered, setRendered] = useState<{ sender: string; text: string }[]>([]);
-  const last = useRef(0);
-  useEffect(() => { last.current = 0; setRendered([]); }, [groupId]);
   useEffect(() => {
     (async () => {
-      const slice = events.slice(last.current);
-      const out: { sender: string; text: string }[] = [];
-      for (const ev of slice) {
-        if (groupKey && isMember) {
-          try {
-            const parsed = JSON.parse(ev.args.ciphertext);
-            const plain = await decryptMessage(groupKey, parsed);
-            out.push({ sender: ev.args.sender, text: plain });
-          } catch { out.push({ sender: ev.args.sender, text: '***' }); }
-        } else {
-          out.push({ sender: ev.args.sender, text: '***' });
-        }
-      }
-      if (out.length) { setRendered(prev => [...prev, ...out]); last.current = events.length; }
+      const out = await Promise.all(
+        msgs.map(async (ev) => {
+          if (groupKey && isMember) {
+            try {
+              const parsed = JSON.parse(ev.args.ciphertext);
+              const plain = await decryptMessage(groupKey, parsed);
+              return { sender: ev.args.sender, text: plain };
+            } catch {
+              return { sender: ev.args.sender, text: '***' };
+            }
+          }
+          return { sender: ev.args.sender, text: '***' };
+        })
+      );
+      setRendered(out);
     })();
-  }, [events, groupKey, isMember, groupId]);
+  }, [msgs, groupKey, isMember, groupId]);
 
   const createdText = groupInfo ? new Date(Number(groupInfo.createdAt) * 1000).toLocaleString() : '-';
   const membersText = groupInfo ? groupInfo.memberCount.toString() : '-';
