@@ -7,11 +7,6 @@ import { XCHAT_ADDRESS, XCHAT_ABI } from '../config/contracts';
 import { useAccount } from 'wagmi';
 import { useEthersSigner } from '../hooks/useEthersSigner';
 import { useZamaInstance } from '../hooks/useZamaInstance';
-import { decryptMessage, encryptMessage, deriveAesKeyFromAddress } from '../hooks/crypto';
-
-type MessageEvent = {
-  args: { groupId: bigint; sender: `0x${string}`; ciphertext: string; timestamp: bigint }
-};
 
 export function XChatApp() {
   const { address, isConnected } = useAccount();
@@ -22,16 +17,6 @@ export function XChatApp() {
   const [groupName, setGroupName] = useState('');
   const [createBusy, setCreateBusy] = useState(false);
   const [joinBusy, setJoinBusy] = useState(false);
-  const [activeGroupId, setActiveGroupId] = useState<number | null>(null);
-
-  const [groupKey, setGroupKey] = useState<CryptoKey | null>(null);
-  const [keyStatus, setKeyStatus] = useState<string>('');
-
-  const [message, setMessage] = useState('');
-  const [sending, setSending] = useState(false);
-  const [events, setEvents] = useState<MessageEvent[]>([]);
-  const [isMember, setIsMember] = useState<boolean>(false);
-  const [activeGroupInfo, setActiveGroupInfo] = useState<{ name: string; owner: `0x${string}`; createdAt: bigint; memberCount: bigint } | null>(null);
 
   const [allGroups, setAllGroups] = useState<Array<{ id: number; name: string; owner: string; createdAt: bigint; memberCount: bigint; member: boolean }>>([]);
   const [myGroups, setMyGroups] = useState<Array<{ id: number; name: string }>>([]);
@@ -72,82 +57,10 @@ export function XChatApp() {
 
   useEffect(() => { refreshGroups(); }, [address]);
 
-  async function loadGroupMessages(groupId: number) {
-    try {
-      // Check membership
-      if (address) {
-        const member = await viemClient.readContract({
-          address: XCHAT_ADDRESS as `0x${string}`,
-          abi: XCHAT_ABI as any,
-          functionName: 'getIsMember',
-          args: [BigInt(groupId), address as `0x${string}`],
-        }) as boolean;
-        setIsMember(member);
-      } else {
-        setIsMember(false);
-      }
-
-      // Load historical logs (limited range)
-      const latest = await viemClient.getBlockNumber();
-      const from = latest > 200000n ? latest - 200000n : 0n;
-      const logs = await viemClient.getLogs({
-        address: XCHAT_ADDRESS as `0x${string}`,
-        event: {
-          type: 'event',
-          name: 'MessageSent',
-          inputs: [
-            { indexed: true, name: 'groupId', type: 'uint256' },
-            { indexed: true, name: 'sender', type: 'address' },
-            { indexed: false, name: 'ciphertext', type: 'string' },
-            { indexed: false, name: 'timestamp', type: 'uint256' },
-          ],
-        } as const,
-        fromBlock: from,
-        toBlock: 'latest',
-      });
-      const parsed = (logs as any[])
-        .filter(l => Number(l.args.groupId) === groupId)
-        .map(l => ({ args: l.args })) as MessageEvent[];
-      setEvents(parsed);
-
-      // Load group info header
-      const [name, owner, createdAt, memberCount] = await viemClient.readContract({
-        address: XCHAT_ADDRESS as `0x${string}`,
-        abi: XCHAT_ABI as any,
-        functionName: 'getGroup',
-        args: [BigInt(groupId)],
-      }) as [string, `0x${string}`, bigint, bigint];
-      setActiveGroupInfo({ name, owner, createdAt, memberCount });
-    } catch {}
-  }
+  // Per-group messages are handled in GroupPage
 
   // Watch live events for active group
-  useEffect(() => {
-    if (activeGroupId == null) return;
-    let unwatch: (() => void) | null = null;
-    (async () => {
-      try {
-        unwatch = await viemClient.watchEvent({
-          address: XCHAT_ADDRESS as `0x${string}`,
-          event: {
-            type: 'event',
-            name: 'MessageSent',
-            inputs: [
-              { indexed: true, name: 'groupId', type: 'uint256' },
-              { indexed: true, name: 'sender', type: 'address' },
-              { indexed: false, name: 'ciphertext', type: 'string' },
-              { indexed: false, name: 'timestamp', type: 'uint256' },
-            ],
-          } as const,
-          onLogs: (logs: any[]) => {
-            const filtered = logs.filter(l => Number(l.args.groupId) === activeGroupId).map(l => ({ args: l.args }));
-            if (filtered.length) setEvents(prev => [...prev, ...filtered]);
-          },
-        });
-      } catch {}
-    })();
-    return () => { if (unwatch) unwatch(); };
-  }, [activeGroupId, viemClient]);
+  // No live subscription here
 
   const createGroup = async () => {
     if (!isConnected || !address || !fhe || !signerPromise) return;
@@ -172,113 +85,19 @@ export function XChatApp() {
     }
   };
 
-  const joinGroup = async () => {
+  const joinGroup = async (id: number) => {
     if (!isConnected || !signerPromise) return;
     setJoinBusy(true);
     try {
       const signer = await signerPromise;
       const contract = new ethers.Contract(XCHAT_ADDRESS, XCHAT_ABI, signer);
-      const tx = await contract.joinGroup(activeGroupId);
+      const tx = await contract.joinGroup(id);
       await tx.wait();
     } finally {
       setJoinBusy(false);
     }
   };
-
-  const loadGroupKey = async () => {
-    if (!isConnected || !address || !fhe || !signerPromise || activeGroupId == null) return;
-    setKeyStatus('Loading...');
-    try {
-      // Read encrypted eaddress via viem
-      const data = await viemClient.readContract({
-        address: XCHAT_ADDRESS as `0x${string}`,
-        abi: XCHAT_ABI as any,
-        functionName: 'getGroupPassword',
-        args: [BigInt(activeGroupId)],
-      });
-      const handle = data as string; // bytes32 handle
-
-      // User decrypt via relayer SDK
-      const keyPair = fhe.generateKeypair();
-      const handleContractPairs = [
-        { handle, contractAddress: XCHAT_ADDRESS },
-      ];
-      const startTimeStamp = Math.floor(Date.now() / 1000).toString();
-      const durationDays = '10';
-      const contractAddresses = [XCHAT_ADDRESS];
-
-      // Request EIP-712 signature via ethers signer
-      const signer = await signerPromise;
-      const eip712 = fhe.createEIP712(keyPair.publicKey, contractAddresses, startTimeStamp, durationDays);
-      const signature = await signer.signTypedData(
-        eip712.domain as any,
-        { UserDecryptRequestVerification: (eip712 as any).types.UserDecryptRequestVerification },
-        eip712.message as any,
-      );
-
-      const result = await fhe.userDecrypt(
-        handleContractPairs,
-        keyPair.privateKey,
-        keyPair.publicKey,
-        signature.replace('0x', ''),
-        contractAddresses,
-        await signer.getAddress(),
-        startTimeStamp,
-        durationDays,
-      );
-
-      const clearAddr = (result as any)[handle] as string; // decrypted address string
-      const key = await deriveAesKeyFromAddress(clearAddr);
-      setGroupKey(key);
-      setKeyStatus('Key loaded');
-    } catch (e: any) {
-      setKeyStatus(e?.message || 'Failed to load key');
-    }
-  };
-
-  const send = async () => {
-    if (!groupKey || !message || !signerPromise || activeGroupId == null) return;
-    setSending(true);
-    try {
-      const blob = await encryptMessage(groupKey, message);
-      const signer = await signerPromise;
-      const contract = new ethers.Contract(XCHAT_ADDRESS, XCHAT_ABI, signer);
-      const tx = await contract.sendMessage(activeGroupId, JSON.stringify(blob));
-      await tx.wait();
-      setMessage('');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const decryptedMessages = useMemo(() => {
-    if (!groupKey) return [] as { sender: string; text: string }[];
-    return events.map((e) => ({ sender: e.args.sender, text: '' }))
-  }, [events, groupKey]);
-
-  // Attempt to decrypt displayed messages on render
-  const [renderedMessages, setRenderedMessages] = useState<{ sender: string; text: string }[]>([]);
-  const lastCount = useRef(0);
-  useEffect(() => {
-    (async () => {
-      if (!groupKey) { setRenderedMessages([]); return; }
-      const slice = events.slice(lastCount.current);
-      const out: { sender: string; text: string }[] = [];
-      for (const ev of slice) {
-        try {
-          const parsed = JSON.parse(ev.args.ciphertext);
-          const plain = await decryptMessage(groupKey, parsed);
-          out.push({ sender: ev.args.sender, text: plain });
-        } catch {
-          out.push({ sender: ev.args.sender, text: '(unable to decrypt)' });
-        }
-      }
-      if (out.length) {
-        setRenderedMessages((prev) => [...prev, ...out]);
-        lastCount.current = events.length;
-      }
-    })();
-  }, [events, groupKey]);
+  // No message decryption on the list page
 
   function GroupList() {
     return (
@@ -299,8 +118,8 @@ export function XChatApp() {
                     <div style={{ color: '#666', fontSize: 12 }}>owner {g.owner} • members {g.memberCount.toString()}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={async () => { setActiveGroupId(g.id); await loadGroupMessages(g.id); }}>Open</button>
-                    <button onClick={async () => { setActiveGroupId(g.id); await joinGroup(); await refreshGroups(); }}>Join</button>
+                    <button onClick={() => { window.location.hash = `#/group/${g.id}`; }}>Open</button>
+                    <button onClick={async () => { await joinGroup(g.id); await refreshGroups(); }}>Join</button>
                   </div>
                 </div>
               ))}
@@ -323,7 +142,7 @@ export function XChatApp() {
             {myGroups.map(g => (
               <div key={g.id} style={{ padding: '8px 0', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div><strong>#{g.id}</strong> {g.name}</div>
-                <button onClick={async ()=>{ setActiveGroupId(g.id); await loadGroupMessages(g.id); }}>Open</button>
+                <button onClick={()=>{ window.location.hash = `#/group/${g.id}`; }}>Open</button>
               </div>
             ))}
             {myGroups.length === 0 && <div style={{ color: '#888' }}>No joined groups.</div>}
@@ -333,88 +152,13 @@ export function XChatApp() {
     );
   }
 
-  function GroupDetail() {
-    const [renderedMessages, setRenderedMessages] = useState<{ sender: string; text: string }[]>([]);
-    const lastCount = useRef(0);
-    useEffect(() => { lastCount.current = 0; setRenderedMessages([]); }, [activeGroupId]);
-    useEffect(() => {
-      (async () => {
-        if (activeGroupId == null) return;
-        if (!groupKey || !isMember) {
-          // Redact for non-members
-          const slice = events.slice(lastCount.current);
-          const out = slice.map(ev => ({ sender: ev.args.sender, text: '***' }));
-          if (out.length) {
-            setRenderedMessages(prev => [...prev, ...out]);
-            lastCount.current = events.length;
-          }
-          return;
-        }
-        const slice = events.slice(lastCount.current);
-        const out: { sender: string; text: string }[] = [];
-        for (const ev of slice) {
-          try {
-            const parsed = JSON.parse(ev.args.ciphertext);
-            const plain = await decryptMessage(groupKey, parsed);
-            out.push({ sender: ev.args.sender, text: plain });
-          } catch { out.push({ sender: ev.args.sender, text: '***' }); }
-        }
-        if (out.length) {
-          setRenderedMessages(prev => [...prev, ...out]);
-          lastCount.current = events.length;
-        }
-      })();
-    }, [events, groupKey, isMember, activeGroupId]);
-
-    const createdText = activeGroupInfo ? new Date(Number(activeGroupInfo.createdAt) * 1000).toLocaleString() : '-';
-    const membersText = activeGroupInfo ? activeGroupInfo.memberCount.toString() : '-';
-
-    return (
-      <div style={{ marginTop: 16 }}>
-        <div style={{ padding: '8px 0', borderBottom: '1px solid #eee', marginBottom: 12 }}>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>
-            Group #{activeGroupId}: {activeGroupInfo?.name ?? ''}
-          </div>
-          <div style={{ color: '#666', fontSize: 13 }}>
-            Members: {membersText} • Created: {createdText}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button onClick={async ()=>{ if (activeGroupId!=null){ await joinGroup(); await refreshGroups(); } }} disabled={joinBusy}>Join</button>
-          <button onClick={loadGroupKey}>Load Key</button>
-          <span>{keyStatus}</span>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
-          <input
-            placeholder={isMember ? 'Type a message' : 'Join to send messages'}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            disabled={!isMember}
-            style={{ flex: 1, minWidth: 240, padding: 8, border: '1px solid #ddd', borderRadius: 6 }}
-          />
-          <button onClick={send} disabled={!groupKey || !message || sending || !isMember}>Send</button>
-        </div>
-
-        <div style={{ marginTop: 16, borderTop: '1px solid #eee', paddingTop: 12 }}>
-          {renderedMessages.map((m, idx) => (
-            <div key={idx} style={{ marginBottom: 8 }}>
-              <strong style={{ marginRight: 8 }}>{m.sender}</strong>
-              <span>{m.text}</span>
-            </div>
-          ))}
-          {renderedMessages.length === 0 && <div style={{ color: '#888' }}>No messages yet.</div>}
-        </div>
-      </div>
-    );
-  }
+  // Detail page moved to GroupPage
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
       <Header />
       <main style={{ padding: 16 }}>
         <GroupList />
-        {activeGroupId != null && <GroupDetail />}
       </main>
     </div>
   );
