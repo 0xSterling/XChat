@@ -6,7 +6,6 @@ import { useAccount, usePublicClient } from 'wagmi';
 import { useEthersSigner } from '../hooks/useEthersSigner';
 import { useZamaInstance } from '../hooks/useZamaInstance';
 import { decryptMessage, encryptMessage, deriveAesKeyFromAddress } from '../hooks/crypto';
-import { Header } from '../components/Header';
 
 type MessageEvent = {
   id: string;
@@ -24,7 +23,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
   const seen = useRef<Set<string>>(new Set());
 
   const [groupKey, setGroupKey] = useState<CryptoKey | null>(null);
-  const [keyStatus, setKeyStatus] = useState('');
+  const [, setKeyStatus] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -217,7 +216,6 @@ export function GroupPage({ groupId }: { groupId: number }) {
     })();
   }, [msgs, groupKey, isMember, groupId]);
 
-  const createdText = groupInfo ? new Date(Number(groupInfo.createdAt) * 1000).toLocaleString() : '-';
   const membersText = groupInfo ? groupInfo.memberCount.toString() : '-';
 
   function short(addr: string) {
@@ -235,222 +233,296 @@ export function GroupPage({ groupId }: { groupId: number }) {
   }
 
   return (
-    <div style={{ maxWidth: '64rem', margin: '0 auto', padding: 'var(--space-4)' }}>
-      <Header />
-
-      <main style={{ marginTop: 'var(--space-6)' }}>
+    <div style={{
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      background: 'var(--color-bg-chat)'
+    }}>
+      {/* WhatsApp-style chat header */}
+      <div style={{
+        background: 'var(--color-whatsapp-green)',
+        color: 'white',
+        padding: 'var(--space-4)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-3)',
+        borderBottom: '1px solid var(--color-border)',
+        flexShrink: 0
+      }}>
         {/* Back button */}
-        <div className="mb-6">
-          <button
-            className="secondary"
-            onClick={() => { window.location.hash = '#/'; }}
-            style={{ fontSize: 'var(--text-sm)' }}
-          >
-            ← Back to Groups
-          </button>
+        <button
+          onClick={() => { window.location.hash = '#/'; }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'white',
+            fontSize: 'var(--text-lg)',
+            cursor: 'pointer',
+            padding: 'var(--space-1)',
+            borderRadius: '50%',
+            width: '2rem',
+            height: '2rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          ←
+        </button>
+
+        {/* Group avatar */}
+        <div
+          style={{
+            width: '2.5rem',
+            height: '2.5rem',
+            borderRadius: '50%',
+            background: `linear-gradient(135deg, ${colorFromAddress(groupInfo?.owner || '')}, ${colorFromAddress((groupInfo?.owner || '') + '1')})`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 'var(--text-base)',
+            fontWeight: '600',
+            color: 'white',
+            flexShrink: 0
+          }}
+        >
+          {groupInfo?.name ? groupInfo.name.charAt(0).toUpperCase() : '#'}
         </div>
 
-        {/* Group header card */}
-        <div className="card mb-6">
-          <div style={{ marginBottom: 'var(--space-4)' }}>
-            <div className="flex items-center gap-4 mb-4 flex-mobile-col">
-              <div
-                className="avatar-mobile"
-                style={{
-                  width: '3rem',
-                  height: '3rem',
-                  borderRadius: 'var(--radius-lg)',
-                  background: `linear-gradient(135deg, ${colorFromAddress(groupInfo?.owner || '')}, ${colorFromAddress((groupInfo?.owner || '') + '1')})`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 'var(--text-lg)',
-                  fontWeight: '600',
-                  color: 'white',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                }}
-              >
-                #{groupId}
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold" style={{ margin: 0, marginBottom: 'var(--space-1)' }}>
-                  {groupInfo?.name || 'Loading...'}
-                </h1>
-                <div className="flex items-center gap-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    {groupInfo && (
-                      <div
-                        style={{
-                          width: '1rem',
-                          height: '1rem',
-                          borderRadius: '50%',
-                          background: colorFromAddress(groupInfo.owner)
-                        }}
-                      />
-                    )}
-                    <span>Owner: {groupInfo ? short(groupInfo.owner) : '-'}</span>
-                  </div>
-                  <span>•</span>
-                  <span>{membersText} members</span>
-                  <span>•</span>
-                  <span>Created {createdText}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex items-center gap-4 flex-mobile-col">
-              {!isMember ? (
-                <button onClick={join} className="mobile-full" style={{ background: 'var(--color-success)' }}>
-                  Join Group
-                </button>
-              ) : (
-                <button disabled className="mobile-full" style={{ background: 'var(--color-gray-300)' }}>
-                  ✓ Joined
-                </button>
-              )}
-
-              <button onClick={loadKey} className="secondary mobile-full">
-                {groupKey ? '🔓 Key Loaded' : '🔐 Load Key'}
-              </button>
-
-              {keyStatus && (
-                <span className="text-sm text-gray-600">
-                  {keyStatus}
-                </span>
-              )}
-            </div>
-
-            {!groupKey && (
-              <div style={{
-                marginTop: 'var(--space-4)',
-                padding: 'var(--space-3) var(--space-4)',
-                background: 'var(--color-primary-light)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 'var(--text-sm)',
-                color: 'var(--color-primary)'
-              }}>
-                💡 Load your key to decrypt messages and send new ones
-              </div>
-            )}
+        {/* Group info */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 'var(--text-base)',
+            fontWeight: '600',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}>
+            {groupInfo?.name || 'Loading...'}
+          </div>
+          <div style={{
+            fontSize: 'var(--text-xs)',
+            opacity: 0.8,
+            marginTop: '1px'
+          }}>
+            {membersText} members
           </div>
         </div>
 
-        {/* Message input card */}
-        <div className="card mb-6">
-          <div className="flex gap-4 items-end flex-mobile-col">
-            <div style={{ flex: 1 }}>
-              <label className="text-sm font-medium text-gray-700" style={{ display: 'block', marginBottom: 'var(--space-2)' }}>
-                {isMember ? 'Send a message' : 'Join the group to send messages'}
-              </label>
-              <input
-                type="text"
-                placeholder={isMember ? 'Type your message...' : 'Join to send messages'}
-                value={message}
-                onChange={(e)=>setMessage(e.target.value)}
-                disabled={!isMember}
-                style={{
-                  minHeight: '2.75rem',
-                  fontSize: 'var(--text-base)'
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && message && !sending && isMember) {
-                    send();
-                  }
-                }}
-              />
-            </div>
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          {!isMember ? (
             <button
-              onClick={send}
-              disabled={!message || sending || !isMember}
-              className="mobile-full"
+              onClick={join}
               style={{
-                minHeight: '2.75rem',
-                paddingLeft: 'var(--space-6)',
-                paddingRight: 'var(--space-6)'
+                background: 'rgba(255,255,255,0.1)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                padding: 'var(--space-2) var(--space-3)',
+                fontSize: 'var(--text-xs)',
+                cursor: 'pointer'
               }}
             >
-              {sending ? 'Sending...' : 'Send'}
+              Join
             </button>
-          </div>
+          ) : null}
+
+          <button
+            onClick={loadKey}
+            style={{
+              background: groupKey ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              padding: 'var(--space-2) var(--space-3)',
+              fontSize: 'var(--text-xs)',
+              cursor: 'pointer'
+            }}
+          >
+            {groupKey ? '🔓' : '🔐'}
+          </button>
         </div>
+      </div>
 
-        {/* Messages card */}
-        <div className="card">
-          <div style={{ marginBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-border)', paddingBottom: 'var(--space-4)' }}>
-            <h2 className="text-lg font-semibold" style={{ margin: 0 }}>Messages</h2>
-            <p className="text-sm text-gray-600" style={{ margin: 0, marginTop: 'var(--space-1)' }}>
-              {rendered.length} message{rendered.length !== 1 ? 's' : ''}
-            </p>
+      {/* Messages area - WhatsApp style */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: 'var(--space-4) var(--space-2)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-3)'
+      }}>
+        {/* Encryption status */}
+        {!groupKey && isMember && (
+          <div style={{
+            background: 'rgba(255, 243, 205, 0.8)',
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--text-sm)',
+            textAlign: 'center',
+            color: '#8b5a2b',
+            margin: '0 var(--space-2)'
+          }}>
+            🔐 Load your key to decrypt and send messages
           </div>
+        )}
 
-          <div style={{ maxHeight: '32rem', overflowY: 'auto', padding: 'var(--space-2)' }}>
-            {rendered.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                {rendered.map((m, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'flex',
-                      gap: 'var(--space-3)',
-                      padding: 'var(--space-3)',
-                      borderRadius: 'var(--radius-md)',
-                      background: idx % 2 === 0 ? 'transparent' : 'var(--color-gray-50)',
-                      transition: 'all var(--transition-fast)'
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '2.5rem',
-                        height: '2.5rem',
-                        borderRadius: '50%',
-                        background: `linear-gradient(135deg, ${colorFromAddress(m.sender)}, ${colorFromAddress(m.sender + '1')})`,
-                        flexShrink: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 'var(--text-xs)',
-                        fontWeight: '600',
-                        color: 'white',
-                        textShadow: '0 1px 1px rgba(0,0,0,0.2)'
-                      }}
-                    >
-                      {short(m.sender).slice(2, 4).toUpperCase()}
+        {/* Messages */}
+        {rendered.length > 0 ? (
+          rendered.map((m, idx) => {
+            const isOwnMessage = address && m.sender.toLowerCase() === address.toLowerCase();
+            return (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
+                  marginBottom: 'var(--space-2)'
+                }}
+              >
+                <div
+                  style={{
+                    maxWidth: '70%',
+                    minWidth: '120px',
+                    background: isOwnMessage ? 'var(--color-whatsapp-bubble-out)' : 'var(--color-whatsapp-bubble-in)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: 'var(--space-3)',
+                    boxShadow: 'var(--shadow-sm)',
+                    position: 'relative'
+                  }}
+                >
+                  {/* Sender name for other people's messages */}
+                  {!isOwnMessage && (
+                    <div style={{
+                      fontSize: 'var(--text-xs)',
+                      fontWeight: '600',
+                      color: colorFromAddress(m.sender),
+                      marginBottom: 'var(--space-1)'
+                    }}>
+                      {short(m.sender)}
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="font-semibold text-gray-800" style={{ fontSize: 'var(--text-sm)', marginBottom: 'var(--space-1)' }}>
-                        {short(m.sender)}
-                      </div>
-                      <div style={{
-                        color: m.text === '***' ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
-                        fontSize: 'var(--text-base)',
-                        lineHeight: 'var(--leading-relaxed)',
-                        wordBreak: 'break-word'
-                      }}>
-                        {m.text === '***' ? '***' : m.text}
-                      </div>
-                    </div>
+                  )}
+
+                  {/* Message text */}
+                  <div style={{
+                    fontSize: 'var(--text-base)',
+                    lineHeight: 'var(--leading-normal)',
+                    wordBreak: 'break-word',
+                    color: m.text === '***' ? 'var(--color-text-muted)' : 'var(--color-text-primary)'
+                  }}>
+                    {m.text === '***' ? '🔒 Encrypted message' : m.text}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{
-                textAlign: 'center',
-                padding: 'var(--space-12)',
-                color: 'var(--color-text-muted)'
-              }}>
-                <div style={{ fontSize: 'var(--text-4xl)', marginBottom: 'var(--space-4)' }}>💬</div>
-                <div className="text-lg font-medium" style={{ marginBottom: 'var(--space-2)' }}>
-                  No messages yet
+
+                  {/* Message tail for bubble effect */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      [isOwnMessage ? 'right' : 'left']: '-6px',
+                      width: 0,
+                      height: 0,
+                      borderLeft: isOwnMessage ? '6px solid var(--color-whatsapp-bubble-out)' : '6px solid transparent',
+                      borderRight: isOwnMessage ? '6px solid transparent' : '6px solid var(--color-whatsapp-bubble-in)',
+                      borderTop: '6px solid transparent',
+                      borderBottom: `6px solid ${isOwnMessage ? 'var(--color-whatsapp-bubble-out)' : 'var(--color-whatsapp-bubble-in)'}`
+                    }}
+                  />
                 </div>
-                <div className="text-sm">
-                  Be the first to start the conversation!
-                </div>
               </div>
-            )}
+            );
+          })
+        ) : (
+          <div style={{
+            textAlign: 'center',
+            padding: 'var(--space-12)',
+            color: 'var(--color-text-muted)',
+            opacity: 0.6
+          }}>
+            <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>💬</div>
+            <div style={{ fontSize: 'var(--text-base)', marginBottom: 'var(--space-2)' }}>
+              No messages yet
+            </div>
+            <div style={{ fontSize: 'var(--text-sm)' }}>
+              Be the first to start the conversation!
+            </div>
           </div>
+        )}
+      </div>
+
+      {/* WhatsApp-style input area */}
+      <div style={{
+        background: 'var(--color-bg-primary)',
+        borderTop: '1px solid var(--color-border)',
+        padding: 'var(--space-3)',
+        display: 'flex',
+        gap: 'var(--space-3)',
+        alignItems: 'center',
+        flexShrink: 0
+      }}>
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          background: 'white',
+          borderRadius: '25px',
+          border: '1px solid var(--color-border)',
+          paddingLeft: 'var(--space-4)',
+          paddingRight: message.trim() ? 'var(--space-2)' : 'var(--space-4)'
+        }}>
+          <input
+            type="text"
+            placeholder={
+              !isMember
+                ? "Join to send messages"
+                : !groupKey
+                  ? "Load key to send messages"
+                  : "Type a message..."
+            }
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            disabled={!isMember || !groupKey}
+            style={{
+              flex: 1,
+              border: 'none',
+              outline: 'none',
+              padding: 'var(--space-3) 0',
+              fontSize: 'var(--text-base)',
+              background: 'transparent'
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && message.trim() && !sending && isMember && groupKey) {
+                send();
+              }
+            }}
+          />
+
+          {message.trim() && isMember && groupKey && (
+            <button
+              onClick={send}
+              disabled={sending}
+              style={{
+                background: 'var(--color-whatsapp-green)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: '2rem',
+                height: '2rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)',
+                margin: 'var(--space-1)'
+              }}
+            >
+              {sending ? '⏳' : '→'}
+            </button>
+          )}
         </div>
-      </main>
+      </div>
     </div>
   );
 }

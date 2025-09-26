@@ -1,12 +1,20 @@
 :root {
-  /* Colors */
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-primary-light: #dbeafe;
-  --color-secondary: #6366f1;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
+  /* WhatsApp Colors */
+  --color-primary: #00a884;
+  --color-primary-hover: #008069;
+  --color-primary-light: #d1f4dd;
+  --color-secondary: #128c7e;
+  --color-success: #06cf9c;
+  --color-warning: #ffb84d;
+  --color-error: #e53e3e;
+
+  /* WhatsApp specific colors */
+  --color-whatsapp-green: #00a884;
+  --color-whatsapp-green-dark: #008069;
+  --color-whatsapp-green-light: #d1f4dd;
+  --color-whatsapp-bubble-out: #d9fdd3;
+  --color-whatsapp-bubble-in: #ffffff;
+  --color-whatsapp-teal: #128c7e;
 
   /* Grays */
   --color-gray-50: #f9fafb;
@@ -27,8 +35,9 @@
 
   /* Background colors */
   --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f9fafb;
-  --color-bg-tertiary: #f3f4f6;
+  --color-bg-secondary: #f0f2f5;
+  --color-bg-tertiary: #e9edef;
+  --color-bg-chat: #efeae2;
 
   /* Borders */
   --color-border: #e5e7eb;
