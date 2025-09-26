@@ -84,7 +84,13 @@ function ChatList(props: {
           allGroups.map((group) => (
             <div
               key={group.id}
-              onClick={() => onOpen(group.id)}
+              onClick={() => {
+                if (group.name.includes('Invited Only')) {
+                  alert('Invited Only');
+                  return;
+                }
+                onOpen(group.id);
+              }}
               style={{
                 padding: 'var(--space-4)',
                 borderBottom: '1px solid var(--color-border-light)',
