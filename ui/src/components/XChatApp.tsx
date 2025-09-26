@@ -31,6 +31,7 @@ export function XChatApp() {
   const [sending, setSending] = useState(false);
   const [events, setEvents] = useState<MessageEvent[]>([]);
   const [isMember, setIsMember] = useState<boolean>(false);
+  const [activeGroupInfo, setActiveGroupInfo] = useState<{ name: string; owner: `0x${string}`; createdAt: bigint; memberCount: bigint } | null>(null);
 
   const [allGroups, setAllGroups] = useState<Array<{ id: number; name: string; owner: string; createdAt: bigint; memberCount: bigint; member: boolean }>>([]);
   const [myGroups, setMyGroups] = useState<Array<{ id: number; name: string }>>([]);
@@ -108,6 +109,15 @@ export function XChatApp() {
         .filter(l => Number(l.args.groupId) === groupId)
         .map(l => ({ args: l.args })) as MessageEvent[];
       setEvents(parsed);
+
+      // Load group info header
+      const [name, owner, createdAt, memberCount] = await viemClient.readContract({
+        address: XCHAT_ADDRESS as `0x${string}`,
+        abi: XCHAT_ABI as any,
+        functionName: 'getGroup',
+        args: [BigInt(groupId)],
+      }) as [string, `0x${string}`, bigint, bigint];
+      setActiveGroupInfo({ name, owner, createdAt, memberCount });
     } catch {}
   }
 
@@ -356,8 +366,19 @@ export function XChatApp() {
       })();
     }, [events, groupKey, isMember, activeGroupId]);
 
+    const createdText = activeGroupInfo ? new Date(Number(activeGroupInfo.createdAt) * 1000).toLocaleString() : '-';
+    const membersText = activeGroupInfo ? activeGroupInfo.memberCount.toString() : '-';
+
     return (
       <div style={{ marginTop: 16 }}>
+        <div style={{ padding: '8px 0', borderBottom: '1px solid #eee', marginBottom: 12 }}>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>
+            Group #{activeGroupId}: {activeGroupInfo?.name ?? ''}
+          </div>
+          <div style={{ color: '#666', fontSize: 13 }}>
+            Members: {membersText} • Created: {createdText}
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button onClick={async ()=>{ if (activeGroupId!=null){ await joinGroup(); await refreshGroups(); } }} disabled={joinBusy}>Join</button>
           <button onClick={loadGroupKey}>Load Key</button>
