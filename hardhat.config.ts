@@ -1,3 +1,5 @@
+import * as dotenv from "dotenv";
+dotenv.config();
 import "@fhevm/hardhat-plugin";
 import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomicfoundation/hardhat-ethers";
@@ -16,7 +18,12 @@ import "./tasks/XChat";
 // Run 'npx hardhat vars setup' to see the list of variables that need to be set
 
 const MNEMONIC: string = vars.get("MNEMONIC", "test test test test test test test test test test test junk");
-const INFURA_API_KEY: string = vars.get("INFURA_API_KEY", "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+const INFURA_API_KEY: string = process.env.INFURA_API_KEY || "";
+const PRIVATE_KEY_RAW: string | undefined = process.env.PRIVATE_KEY || undefined;
+const PRIVATE_KEY: string | undefined = PRIVATE_KEY_RAW
+  ? (PRIVATE_KEY_RAW.startsWith("0x") ? PRIVATE_KEY_RAW : ("0x" + PRIVATE_KEY_RAW))
+  : undefined;
+const SEPOLIA_RPC_URL: string = process.env.SEPOLIA_RPC_URL || "https://eth-sepolia.public.blastapi.io";
 
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
@@ -50,13 +57,13 @@ const config: HardhatUserConfig = {
       url: "http://localhost:8545",
     },
     sepolia: {
-      accounts: {
+      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : {
         mnemonic: MNEMONIC,
         path: "m/44'/60'/0'/0/",
         count: 10,
       },
       chainId: 11155111,
-      url: `https://sepolia.infura.io/v3/${INFURA_API_KEY}`,
+      url: SEPOLIA_RPC_URL,
     },
   },
   paths: {
