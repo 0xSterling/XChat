@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { type PublicClient } from 'viem';
 import { ethers } from 'ethers';
-import { XCHAT_ADDRESS, XCHAT_ABI } from '../config/contracts';
+import { XCHAT_ADDRESS, XCHAT_ABI, XCOIN_ADDRESS, XCOIN_ABI } from '../config/contracts';
 import { useAccount, usePublicClient } from 'wagmi';
 import { useEthersSigner } from '../hooks/useEthersSigner';
 import { useZamaInstance } from '../hooks/useZamaInstance';
@@ -28,6 +28,8 @@ export function GroupPage({ groupId }: { groupId: number }) {
   const [, setKeyStatus] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [showDonate, setShowDonate] = useState(false);
+  const [donating, setDonating] = useState(false);
 
   const viemClient = usePublicClient() as PublicClient;
 
@@ -202,6 +204,28 @@ export function GroupPage({ groupId }: { groupId: number }) {
     } finally { setSending(false); }
   };
 
+  const donate = async () => {
+    if (!isConnected || !signerPromise || !fhe || !groupInfo || !XCOIN_ADDRESS) return;
+    try {
+      setDonating(true);
+      show('Donating 10 XCOIN...');
+      const signer = await signerPromise;
+      const token = new ethers.Contract(XCOIN_ADDRESS, XCOIN_ABI, signer);
+      const buffer = fhe.createEncryptedInput(XCOIN_ADDRESS, await signer.getAddress());
+      const amount = 10n * (10n ** 6n); // 10 XCOIN with 6 decimals
+      buffer.add64(amount);
+      const enc = await buffer.encrypt();
+      const tx = await token.confidentialTransfer(groupInfo.owner, enc.handles[0], enc.inputProof);
+      await tx.wait();
+      show('Donation sent');
+      setShowDonate(false);
+    } catch (e: any) {
+      show(e?.message || 'Donation failed');
+    } finally {
+      setDonating(false);
+    }
+  };
+
   // Render decrypted or redacted
   const [rendered, setRendered] = useState<{ sender: string; text: string }[]>([]);
   useEffect(() => {
@@ -336,6 +360,22 @@ export function GroupPage({ groupId }: { groupId: number }) {
               Join
             </button>
           ) : null}
+
+          {/* Donate button */}
+          <button
+            onClick={() => setShowDonate(true)}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              padding: 'var(--space-2) var(--space-3)',
+              fontSize: 'var(--text-xs)',
+              cursor: 'pointer'
+            }}
+          >
+            Donate
+          </button>
 
           <button
             onClick={loadKey}
@@ -532,6 +572,32 @@ export function GroupPage({ groupId }: { groupId: number }) {
           )}
         </div>
       </div>
+
+      {/* Donate modal */}
+      {showDonate && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div style={{ background: 'white', borderRadius: 12, padding: 16, width: 360, maxWidth: '90%' }}>
+            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 600, marginBottom: 8 }}>Donate</div>
+            <div style={{ color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+              Donate 10 XCoin to this channel's creator.
+            </div>
+            {!XCOIN_ADDRESS && (
+              <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 8 }}>
+                XCoin not configured. Set XCOIN_ADDRESS after deploy.
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowDonate(false)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'white', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={donate} disabled={donating || !XCOIN_ADDRESS} style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'var(--color-whatsapp-green)', color: 'white', cursor: 'pointer' }}>
+                {donating ? 'Sending...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
