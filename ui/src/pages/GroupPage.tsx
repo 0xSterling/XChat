@@ -162,6 +162,9 @@ export function GroupPage({ groupId }: { groupId: number }) {
       const key = await deriveAesKeyFromAddress(clearAddr);
       setGroupKey(key);
       setKeyStatus('Key loaded');
+      // Re-decrypt all loaded messages after key is available
+      last.current = 0;
+      setRendered([]);
     } catch (e: any) {
       setKeyStatus(e?.message || 'Failed to load key');
     }
@@ -207,6 +210,20 @@ export function GroupPage({ groupId }: { groupId: number }) {
   const createdText = groupInfo ? new Date(Number(groupInfo.createdAt) * 1000).toLocaleString() : '-';
   const membersText = groupInfo ? groupInfo.memberCount.toString() : '-';
 
+  function short(addr: string) {
+    if (!addr) return '';
+    return addr.slice(0, 6) + '...' + addr.slice(-4);
+  }
+
+  function colorFromAddress(addr: string) {
+    let h = 0;
+    for (let i = 2; i < Math.min(addr.length, 10); i++) h = (h * 31 + addr.charCodeAt(i)) >>> 0;
+    const r = 100 + (h & 0x7F);
+    const g = 100 + ((h >> 7) & 0x7F);
+    const b = 100 + ((h >> 14) & 0x7F);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
   return (
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
       <Header />
@@ -216,7 +233,14 @@ export function GroupPage({ groupId }: { groupId: number }) {
         </div>
         <div style={{ padding: '8px 0', borderBottom: '1px solid #eee', marginBottom: 12 }}>
           <div style={{ fontSize: 18, fontWeight: 600 }}>Group #{groupId}: {groupInfo?.name ?? ''}</div>
-          <div style={{ color: '#666', fontSize: 13 }}>Members: {membersText} • Created: {createdText}</div>
+          <div style={{ color: '#666', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {groupInfo && (
+              <div style={{ width: 16, height: 16, borderRadius: 8, background: colorFromAddress(groupInfo.owner) }} />
+            )}
+            <span>Owner: {groupInfo ? short(groupInfo.owner) : '-'}</span>
+            <span>• Members: {membersText}</span>
+            <span>• Created: {createdText}</span>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {!isMember ? <button onClick={join}>Join</button> : <button disabled>Joined</button>}
@@ -230,9 +254,10 @@ export function GroupPage({ groupId }: { groupId: number }) {
         </div>
         <div style={{ marginTop: 16, borderTop: '1px solid #eee', paddingTop: 12 }}>
           {rendered.map((m, idx) => (
-            <div key={idx} style={{ marginBottom: 8 }}>
-              <strong style={{ marginRight: 8 }}>{m.sender}</strong>
-              <span>{m.text}</span>
+            <div key={idx} style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 14, background: colorFromAddress(m.sender), flex: '0 0 auto' }} />
+              <div style={{ fontWeight: 600, color: '#333' }}>{short(m.sender)}:</div>
+              <div style={{ color: '#111' }}>{m.text}</div>
             </div>
           ))}
           {rendered.length === 0 && <div style={{ color: '#888' }}>No messages yet.</div>}

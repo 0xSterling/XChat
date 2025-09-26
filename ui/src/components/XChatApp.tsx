@@ -37,7 +37,7 @@ function GroupList(props: {
               <div key={g.id} style={{ borderBottom: '1px solid #eee', padding: '8px 0', display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div><strong>#{g.id}</strong> {g.name}</div>
-                  <div style={{ color: '#666', fontSize: 12 }}>owner {g.owner} • members {g.memberCount.toString()}</div>
+                  <div style={{ color: '#666', fontSize: 12 }}>owner {g.owner.slice(0,6)}...{g.owner.slice(-4)} • members {g.memberCount.toString()}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => onOpen(g.id)}>Open</button>
@@ -45,7 +45,7 @@ function GroupList(props: {
                 </div>
               </div>
             ))}
-            {allGroups.length === 0 && <div style={{ color: '#888' }}>No groups yet.</div>}
+            {allGroups.length === 0 && <div style={{ color: '#888' }}>Loading groups on chain...</div>}
           </div>
         </div>
       )}
@@ -146,8 +146,27 @@ export function XChatApp() {
       const encrypted = await buffer.encrypt();
 
       const tx = await contract.createGroup(groupName, encrypted.handles[0], encrypted.inputProof);
-      await tx.wait();
+      const rc = await tx.wait();
+      let newId: number | null = null;
+      try {
+        const iface = new ethers.Interface(XCHAT_ABI as any);
+        for (const log of rc!.logs) {
+          try {
+            const parsed = iface.parseLog(log);
+            if (parsed && parsed.name === 'GroupCreated') {
+              newId = Number(parsed.args.groupId);
+              break;
+            }
+          } catch {}
+        }
+      } catch {}
       setGroupName('');
+      if (newId != null) {
+        alert('Group created successfully');
+        window.location.hash = `#/group/${newId}`;
+      } else {
+        alert('Group created. Opening list...');
+      }
     } finally {
       setCreateBusy(false);
     }
