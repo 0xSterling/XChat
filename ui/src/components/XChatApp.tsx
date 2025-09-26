@@ -17,6 +17,8 @@ function ChatList(props: {
 }) {
   const { allGroups, onOpen, onCreateGroup } = props;
   const { show } = useToast();
+  const { instance, isLoading } = useZamaInstance();
+  const fheReady = !!instance && !isLoading;
 
   function colorFromAddress(addr: string) {
     let h = 0;
@@ -80,6 +82,9 @@ function ChatList(props: {
         >
           ➕
         </button>
+        <div className={`fhe-badge ${fheReady ? 'ready' : 'loading'}`}>
+          {fheReady ? 'FHE Ready' : 'FHE loading...'}
+        </div>
         <ConnectButton />
       </div>
 
@@ -335,6 +340,12 @@ export function XChatApp() {
   const [allGroups, setAllGroups] = useState<Array<{ id: number; name: string; owner: string; createdAt: bigint; memberCount: bigint; member: boolean }>>([]);
 
   const viemClient = usePublicClient() as PublicClient;
+  // listen for header create button trigger
+  useEffect(() => {
+    const handler = () => setShowCreateModal(true);
+    window.addEventListener('xchat:create-group' as any, handler as any);
+    return () => window.removeEventListener('xchat:create-group' as any, handler as any);
+  }, []);
 
   async function refreshGroups() {
     try {
