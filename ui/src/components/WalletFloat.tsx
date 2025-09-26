@@ -172,11 +172,11 @@ export function WalletFloat() {
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Address</div>
           <div style={{ marginBottom: 10 }}>{short(address)}</div>
 
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Token</div>
-          <div style={{ marginBottom: 10 }}>{sym}</div>
+          {/* <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Token</div>
+          <div style={{ marginBottom: 10 }}>{sym}</div> */}
 
-          <div style={{ fontSize: 15, color: 'var(--color-text-muted)' }}>Balance : {decBal ? `${decBal} ${sym}` : '*** XCoin'}</div>
-
+          <div style={{ fontSize: 17, color: 'black' }}>Balance : {decBal ? `${decBal} ${sym}` : '*** XCoin'}</div>
+          <div style={{fontSize:13}}>Confidential XCoin, just for test, sending tips.</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={decrypt}

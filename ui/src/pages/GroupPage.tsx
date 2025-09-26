@@ -218,11 +218,11 @@ export function GroupPage({ groupId }: { groupId: number }) {
       const fn = token.getFunction("confidentialTransfer(address,bytes32,bytes)");
       const tx = await fn(groupInfo.owner, enc.handles[0], enc.inputProof);
       await tx.wait();
-      show('Donation sent');
+      show('Donation sent success!');
       setShowDonate(false);
     } catch (e: any) {
       console.log("donate fail:",e);
-      show(e?.message || 'Donation failed');
+      show('Donation failed : Your XCoin is not enough');
     } finally {
       setDonating(false);
     }
