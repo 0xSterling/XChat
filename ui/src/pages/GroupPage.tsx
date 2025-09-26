@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { type PublicClient } from 'viem';
 import { ethers } from 'ethers';
 import { XCHAT_ADDRESS, XCHAT_ABI } from '../config/contracts';
@@ -235,42 +235,220 @@ export function GroupPage({ groupId }: { groupId: number }) {
   }
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto' }}>
+    <div style={{ maxWidth: '64rem', margin: '0 auto', padding: 'var(--space-4)' }}>
       <Header />
-      <main style={{ padding: 16 }}>
-        <div style={{ marginBottom: 8 }}>
-          <button onClick={() => { window.location.hash = '#/'; }}>Back</button>
+
+      <main style={{ marginTop: 'var(--space-6)' }}>
+        {/* Back button */}
+        <div className="mb-6">
+          <button
+            className="secondary"
+            onClick={() => { window.location.hash = '#/'; }}
+            style={{ fontSize: 'var(--text-sm)' }}
+          >
+            ← Back to Groups
+          </button>
         </div>
-        <div style={{ padding: '8px 0', borderBottom: '1px solid #eee', marginBottom: 12 }}>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>Group #{groupId}: {groupInfo?.name ?? ''}</div>
-          <div style={{ color: '#666', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-            {groupInfo && (
-              <div style={{ width: 16, height: 16, borderRadius: 8, background: colorFromAddress(groupInfo.owner) }} />
+
+        {/* Group header card */}
+        <div className="card mb-6">
+          <div style={{ marginBottom: 'var(--space-4)' }}>
+            <div className="flex items-center gap-4 mb-4 flex-mobile-col">
+              <div
+                className="avatar-mobile"
+                style={{
+                  width: '3rem',
+                  height: '3rem',
+                  borderRadius: 'var(--radius-lg)',
+                  background: `linear-gradient(135deg, ${colorFromAddress(groupInfo?.owner || '')}, ${colorFromAddress((groupInfo?.owner || '') + '1')})`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 'var(--text-lg)',
+                  fontWeight: '600',
+                  color: 'white',
+                  textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                }}
+              >
+                #{groupId}
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold" style={{ margin: 0, marginBottom: 'var(--space-1)' }}>
+                  {groupInfo?.name || 'Loading...'}
+                </h1>
+                <div className="flex items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    {groupInfo && (
+                      <div
+                        style={{
+                          width: '1rem',
+                          height: '1rem',
+                          borderRadius: '50%',
+                          background: colorFromAddress(groupInfo.owner)
+                        }}
+                      />
+                    )}
+                    <span>Owner: {groupInfo ? short(groupInfo.owner) : '-'}</span>
+                  </div>
+                  <span>•</span>
+                  <span>{membersText} members</span>
+                  <span>•</span>
+                  <span>Created {createdText}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-4 flex-mobile-col">
+              {!isMember ? (
+                <button onClick={join} className="mobile-full" style={{ background: 'var(--color-success)' }}>
+                  Join Group
+                </button>
+              ) : (
+                <button disabled className="mobile-full" style={{ background: 'var(--color-gray-300)' }}>
+                  ✓ Joined
+                </button>
+              )}
+
+              <button onClick={loadKey} className="secondary mobile-full">
+                {groupKey ? '🔓 Key Loaded' : '🔐 Load Key'}
+              </button>
+
+              {keyStatus && (
+                <span className="text-sm text-gray-600">
+                  {keyStatus}
+                </span>
+              )}
+            </div>
+
+            {!groupKey && (
+              <div style={{
+                marginTop: 'var(--space-4)',
+                padding: 'var(--space-3) var(--space-4)',
+                background: 'var(--color-primary-light)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--text-sm)',
+                color: 'var(--color-primary)'
+              }}>
+                💡 Load your key to decrypt messages and send new ones
+              </div>
             )}
-            <span>Owner: {groupInfo ? short(groupInfo.owner) : '-'}</span>
-            <span>• Members: {membersText}</span>
-            <span>• Created: {createdText}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {!isMember ? <button onClick={join}>Join</button> : <button disabled>Joined</button>}
-          <button onClick={loadKey}>Load Key</button>
-          <span>{keyStatus}</span>
-        </div>
-         <span>Load key to decrypt group message and send message.</span>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
-          <input placeholder={isMember ? 'Type a message' : 'Join to send messages'} value={message} onChange={(e)=>setMessage(e.target.value)} disabled={!isMember} style={{ flex: 1, minWidth: 240, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
-          <button onClick={send} disabled={!message || sending || !isMember}>Send</button>
-        </div>
-        <div style={{ marginTop: 16, borderTop: '1px solid #eee', paddingTop: 12 }}>
-          {rendered.map((m, idx) => (
-            <div key={idx} style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 14, background: colorFromAddress(m.sender), flex: '0 0 auto' }} />
-              <div style={{ fontWeight: 600, color: '#333' }}>{short(m.sender)}:</div>
-              <div style={{ color: '#111' }}>{m.text}</div>
+
+        {/* Message input card */}
+        <div className="card mb-6">
+          <div className="flex gap-4 items-end flex-mobile-col">
+            <div style={{ flex: 1 }}>
+              <label className="text-sm font-medium text-gray-700" style={{ display: 'block', marginBottom: 'var(--space-2)' }}>
+                {isMember ? 'Send a message' : 'Join the group to send messages'}
+              </label>
+              <input
+                type="text"
+                placeholder={isMember ? 'Type your message...' : 'Join to send messages'}
+                value={message}
+                onChange={(e)=>setMessage(e.target.value)}
+                disabled={!isMember}
+                style={{
+                  minHeight: '2.75rem',
+                  fontSize: 'var(--text-base)'
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && message && !sending && isMember) {
+                    send();
+                  }
+                }}
+              />
             </div>
-          ))}
-          {rendered.length === 0 && <div style={{ color: '#888' }}>No messages yet.</div>}
+            <button
+              onClick={send}
+              disabled={!message || sending || !isMember}
+              className="mobile-full"
+              style={{
+                minHeight: '2.75rem',
+                paddingLeft: 'var(--space-6)',
+                paddingRight: 'var(--space-6)'
+              }}
+            >
+              {sending ? 'Sending...' : 'Send'}
+            </button>
+          </div>
+        </div>
+
+        {/* Messages card */}
+        <div className="card">
+          <div style={{ marginBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-border)', paddingBottom: 'var(--space-4)' }}>
+            <h2 className="text-lg font-semibold" style={{ margin: 0 }}>Messages</h2>
+            <p className="text-sm text-gray-600" style={{ margin: 0, marginTop: 'var(--space-1)' }}>
+              {rendered.length} message{rendered.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+
+          <div style={{ maxHeight: '32rem', overflowY: 'auto', padding: 'var(--space-2)' }}>
+            {rendered.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                {rendered.map((m, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      gap: 'var(--space-3)',
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      background: idx % 2 === 0 ? 'transparent' : 'var(--color-gray-50)',
+                      transition: 'all var(--transition-fast)'
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '2.5rem',
+                        height: '2.5rem',
+                        borderRadius: '50%',
+                        background: `linear-gradient(135deg, ${colorFromAddress(m.sender)}, ${colorFromAddress(m.sender + '1')})`,
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: '600',
+                        color: 'white',
+                        textShadow: '0 1px 1px rgba(0,0,0,0.2)'
+                      }}
+                    >
+                      {short(m.sender).slice(2, 4).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="font-semibold text-gray-800" style={{ fontSize: 'var(--text-sm)', marginBottom: 'var(--space-1)' }}>
+                        {short(m.sender)}
+                      </div>
+                      <div style={{
+                        color: m.text === '***' ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+                        fontSize: 'var(--text-base)',
+                        lineHeight: 'var(--leading-relaxed)',
+                        wordBreak: 'break-word'
+                      }}>
+                        {m.text === '***' ? '***' : m.text}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{
+                textAlign: 'center',
+                padding: 'var(--space-12)',
+                color: 'var(--color-text-muted)'
+              }}>
+                <div style={{ fontSize: 'var(--text-4xl)', marginBottom: 'var(--space-4)' }}>💬</div>
+                <div className="text-lg font-medium" style={{ marginBottom: 'var(--space-2)' }}>
+                  No messages yet
+                </div>
+                <div className="text-sm">
+                  Be the first to start the conversation!
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>
