@@ -41,7 +41,7 @@ function GroupList(props: {
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => onOpen(g.id)}>Open</button>
-                  <button onClick={() => onJoin(g.id)}>Join</button>
+                  {/* <button onClick={() => onJoin(g.id)}>Join</button> */}
                 </div>
               </div>
             ))}
@@ -52,6 +52,8 @@ function GroupList(props: {
       {activeTab === 'create' && (
         <div>
           <h2>Create Group</h2>
+          <p>Create Group will generate FHE encrypted key. It will take 10-30 seconds.</p>
+          <p>Click create and wait...</p>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input placeholder="Group name" value={groupName} onChange={(e)=>setGroupName(e.target.value)} style={{ padding: 8, border: '1px solid #ddd', borderRadius: 6 }}/>
             <button onClick={onCreate} disabled={!groupName || createBusy}>Create</button>

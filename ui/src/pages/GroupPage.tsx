@@ -223,6 +223,7 @@ export function GroupPage({ groupId }: { groupId: number }) {
           <button onClick={loadKey}>Load Key</button>
           <span>{keyStatus}</span>
         </div>
+         <span>Load key to decrypt group message and send message.</span>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
           <input placeholder={isMember ? 'Type a message' : 'Join to send messages'} value={message} onChange={(e)=>setMessage(e.target.value)} disabled={!isMember} style={{ flex: 1, minWidth: 240, padding: 8, border: '1px solid #ddd', borderRadius: 6 }} />
           <button onClick={send} disabled={!message || sending || !isMember}>Send</button>
