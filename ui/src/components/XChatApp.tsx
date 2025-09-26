@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Header } from './Header';
 import { type PublicClient } from 'viem';
 import { ethers } from 'ethers';
 import { XCHAT_ADDRESS, XCHAT_ABI } from '../config/contracts';
@@ -9,336 +8,307 @@ import { useZamaInstance } from '../hooks/useZamaInstance';
 
 type GroupItem = { id: number; name: string; owner: string; createdAt: bigint; memberCount: bigint; member: boolean };
 
-function GroupList(props: {
-  activeTab: 'groups' | 'create' | 'my';
-  setActiveTab: (t: 'groups' | 'create' | 'my') => void;
+function ChatList(props: {
   allGroups: GroupItem[];
-  myGroups: { id: number; name: string }[];
   onOpen: (id: number) => void;
-  groupName: string;
-  setGroupName: (v: string) => void;
-  onCreate: () => Promise<void>;
-  createBusy: boolean;
+  onCreateGroup: () => void;
 }) {
-  const { activeTab, setActiveTab, allGroups, myGroups, onOpen, groupName, setGroupName, onCreate, createBusy } = props;
+  const { allGroups, onOpen, onCreateGroup } = props;
 
   function colorFromAddress(addr: string) {
     let h = 0;
     for (let i = 2; i < Math.min(addr.length, 10); i++) h = (h * 31 + addr.charCodeAt(i)) >>> 0;
-    const r = 100 + (h & 0x7F);
-    const g = 100 + ((h >> 7) & 0x7F);
-    const b = 100 + ((h >> 14) & 0x7F);
+    const r = 120 + (h & 0x7F);
+    const g = 120 + ((h >> 7) & 0x7F);
+    const b = 120 + ((h >> 14) & 0x7F);
     return `rgb(${r}, ${g}, ${b})`;
   }
 
-  function short(addr: string) {
-    if (!addr) return '';
-    return addr.slice(0, 6) + '...' + addr.slice(-4);
+
+  function getLastMessage(groupId: number) {
+    // 模拟最后一条消息
+    const messages = [
+      "Hey everyone! 👋",
+      "How's the project going?",
+      "Let's discuss the next steps",
+      "Great work team! 🎉",
+      "See you in the meeting",
+      "Thanks for the update 👍"
+    ];
+    return messages[groupId % messages.length];
+  }
+
+  function getTimeAgo(groupId: number) {
+    const times = ['now', '2m', '1h', '3h', '1d', '2d'];
+    return times[groupId % times.length];
   }
 
   return (
-    <div>
-      {/* Tab Navigation */}
+    <div style={{ background: 'var(--color-bg-primary)', minHeight: '100vh' }}>
+      {/* WhatsApp-style header */}
       <div style={{
+        padding: 'var(--space-4)',
+        borderBottom: '1px solid var(--color-border)',
+        background: 'var(--color-whatsapp-green)',
+        color: 'white',
         display: 'flex',
-        gap: 0,
-        marginBottom: 'var(--space-8)',
-        background: 'var(--color-bg-primary)',
-        borderRadius: 'var(--radius-lg)',
-        padding: 'var(--space-1)',
-        border: '1px solid var(--color-border-light)'
+        justifyContent: 'space-between',
+        alignItems: 'center'
       }}>
-        {(['groups', 'create', 'my'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              flex: 1,
-              padding: 'var(--space-3) var(--space-4)',
-              background: activeTab === tab ? 'var(--color-primary)' : 'transparent',
-              color: activeTab === tab ? 'white' : 'var(--color-text-secondary)',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 'var(--text-sm)',
-              fontWeight: activeTab === tab ? '600' : '500',
-              cursor: 'pointer',
-              transition: 'all var(--transition-fast)'
-            }}
-          >
-            <span style={{ display: 'inline' }}>
-              {tab === 'groups' && (
-                <>
-                  <span className="hidden-mobile">🌐 All Groups</span>
-                  <span className="show-mobile">🌐 Groups</span>
-                </>
-              )}
-              {tab === 'create' && (
-                <>
-                  <span className="hidden-mobile">➕ Create Group</span>
-                  <span className="show-mobile">➕ Create</span>
-                </>
-              )}
-              {tab === 'my' && (
-                <>
-                  <span className="hidden-mobile">👤 My Groups</span>
-                  <span className="show-mobile">👤 Mine</span>
-                </>
-              )}
-            </span>
-          </button>
-        ))}
+        <h1 style={{ margin: 0, fontSize: 'var(--text-xl)', fontWeight: '600' }}>
+          XChat
+        </h1>
+        <button
+          onClick={onCreateGroup}
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '50%',
+            width: '2.5rem',
+            height: '2.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all var(--transition-fast)'
+          }}
+        >
+          ➕
+        </button>
       </div>
 
-      {activeTab === 'groups' && (
-        <div>
-          <div className="mb-6">
-            <h2 className="text-xl font-bold mb-2" style={{ margin: 0, marginBottom: 'var(--space-2)' }}>
-              All Groups
-            </h2>
-            <p className="text-gray-600 text-sm" style={{ margin: 0 }}>
-              Discover and join groups in the network
-            </p>
-          </div>
-
-          <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
-            {allGroups.map(g => (
-              <div key={g.id} className="card" style={{
-                padding: 'var(--space-5)',
-                transition: 'all var(--transition-fast)',
-                cursor: 'pointer'
+      {/* Chat list */}
+      <div>
+        {allGroups.length > 0 ? (
+          allGroups.map((group) => (
+            <div
+              key={group.id}
+              onClick={() => onOpen(group.id)}
+              style={{
+                padding: 'var(--space-4)',
+                borderBottom: '1px solid var(--color-border-light)',
+                cursor: 'pointer',
+                transition: 'background-color var(--transition-fast)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+            >
+              {/* Avatar */}
+              <div style={{
+                width: '3rem',
+                height: '3rem',
+                borderRadius: '50%',
+                background: colorFromAddress(group.owner),
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 'var(--text-lg)',
+                fontWeight: '600',
+                color: 'white',
+                flexShrink: 0
               }}>
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
+                {group.name.charAt(0).toUpperCase()}
+              </div>
+
+              {/* Chat info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 'var(--space-1)'
+                }}>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: 'var(--text-base)',
+                    fontWeight: '500',
+                    color: 'var(--color-text-primary)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {group.name}
+                  </h3>
+                  <span style={{
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--color-text-muted)',
+                    flexShrink: 0
+                  }}>
+                    {getTimeAgo(group.id)}
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <p style={{
+                    margin: 0,
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--color-text-secondary)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flex: 1
+                  }}>
+                    {getLastMessage(group.id)}
+                  </p>
+
+                  {/* Member status */}
+                  {group.member && (
                     <div style={{
-                      width: '2.5rem',
-                      height: '2.5rem',
-                      borderRadius: 'var(--radius-lg)',
-                      background: `linear-gradient(135deg, ${colorFromAddress(g.owner)}, ${colorFromAddress(g.owner + '1')})`,
+                      width: '1.25rem',
+                      height: '1.25rem',
+                      borderRadius: '50%',
+                      background: 'var(--color-whatsapp-green)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: 'var(--text-sm)',
-                      fontWeight: '600',
-                      color: 'white',
-                      textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                      marginLeft: 'var(--space-2)',
+                      flexShrink: 0
                     }}>
-                      #{g.id}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg" style={{ margin: 0, marginBottom: 'var(--space-1)' }}>
-                        {g.name}
-                      </h3>
-                      <div className="flex items-center gap-3 text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <div style={{
-                            width: '0.75rem',
-                            height: '0.75rem',
-                            borderRadius: '50%',
-                            background: colorFromAddress(g.owner)
-                          }} />
-                          <span>{short(g.owner)}</span>
-                        </div>
-                        <span>•</span>
-                        <span>{g.memberCount.toString()} members</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {g.member && (
-                    <div style={{
-                      background: 'var(--color-success)',
-                      color: 'white',
-                      padding: 'var(--space-1) var(--space-3)',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 'var(--text-xs)',
-                      fontWeight: '500'
-                    }}>
-                      ✓ Joined
+                      <span style={{
+                        color: 'white',
+                        fontSize: '0.6rem',
+                        fontWeight: '600'
+                      }}>
+                        ✓
+                      </span>
                     </div>
                   )}
                 </div>
 
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => onOpen(g.id)}
-                    style={{
-                      flex: 1,
-                      background: 'var(--color-primary)',
-                      color: 'white'
-                    }}
-                  >
-                    Open Group
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {allGroups.length === 0 && (
-              <div style={{
-                textAlign: 'center',
-                padding: 'var(--space-16)',
-                color: 'var(--color-text-muted)'
-              }}>
-                <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>🔍</div>
-                <div className="text-lg font-medium mb-2">Loading groups...</div>
-                <div className="text-sm">Fetching groups from the blockchain</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'create' && (
-        <div>
-          <div className="mb-6">
-            <h2 className="text-xl font-bold mb-2" style={{ margin: 0, marginBottom: 'var(--space-2)' }}>
-              Create New Group
-            </h2>
-            <p className="text-gray-600 text-sm" style={{ margin: 0 }}>
-              Start your own encrypted group chat
-            </p>
-          </div>
-
-          <div className="card" style={{ maxWidth: '32rem' }}>
-            <div style={{
-              background: 'var(--color-primary-light)',
-              borderRadius: 'var(--radius-md)',
-              padding: 'var(--space-4)',
-              marginBottom: 'var(--space-6)',
-              border: '1px solid var(--color-primary)',
-              borderStyle: 'dashed'
-            }}>
-              <div className="flex items-start gap-3">
-                <div style={{ fontSize: 'var(--text-lg)' }}>🔐</div>
-                <div>
-                  <div className="font-medium text-sm mb-1" style={{ color: 'var(--color-primary)' }}>
-                    Fully Homomorphic Encryption
-                  </div>
-                  <div className="text-xs" style={{ color: 'var(--color-primary)', lineHeight: 'var(--leading-relaxed)' }}>
-                    Creating a group generates an FHE encrypted key. This process may take 10-30 seconds to complete.
-                  </div>
+                {/* Member count */}
+                <div style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--color-text-muted)',
+                  marginTop: 'var(--space-1)'
+                }}>
+                  {group.memberCount.toString()} members
                 </div>
               </div>
             </div>
-
-            <div style={{ marginBottom: 'var(--space-6)' }}>
-              <label className="text-sm font-medium text-gray-700" style={{ display: 'block', marginBottom: 'var(--space-2)' }}>
-                Group Name
-              </label>
-              <input
-                type="text"
-                placeholder="Enter a name for your group..."
-                value={groupName}
-                onChange={(e) => setGroupName(e.target.value)}
-                style={{ fontSize: 'var(--text-base)' }}
-              />
+          ))
+        ) : (
+          <div style={{
+            padding: 'var(--space-16)',
+            textAlign: 'center',
+            color: 'var(--color-text-muted)'
+          }}>
+            <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>💬</div>
+            <div style={{ fontSize: 'var(--text-lg)', fontWeight: '500', marginBottom: 'var(--space-2)' }}>
+              Loading All Chats...
             </div>
-
-            <button
-              onClick={onCreate}
-              disabled={!groupName || createBusy}
-              style={{
-                width: '100%',
-                padding: 'var(--space-4)',
-                fontSize: 'var(--text-base)',
-                background: createBusy ? 'var(--color-gray-400)' : 'var(--color-primary)'
-              }}
-            >
-              {createBusy ? (
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}>
-                  <div style={{
-                    width: '1rem',
-                    height: '1rem',
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    borderTop: '2px solid white',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }} />
-                  Creating Group...
-                </span>
-              ) : (
-                '🚀 Create Group'
-              )}
-            </button>
+            <div style={{ fontSize: 'var(--text-sm)' }}>
+              You can also create your new group
+            </div>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Create Group Modal Component
+function CreateGroupModal({ isOpen, onClose, onCreate, createBusy }: {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreate: (name: string) => Promise<void>;
+  createBusy: boolean;
+}) {
+  const [groupName, setGroupName] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: 'var(--radius-lg)',
+        padding: 'var(--space-6)',
+        margin: 'var(--space-4)',
+        maxWidth: '400px',
+        width: '100%'
+      }}>
+        <h2 style={{
+          margin: 0,
+          marginBottom: 'var(--space-4)',
+          fontSize: 'var(--text-xl)',
+          fontWeight: '600'
+        }}>
+          Create New Group
+        </h2>
+
+        <input
+          type="text"
+          placeholder="Group name"
+          value={groupName}
+          onChange={(e) => setGroupName(e.target.value)}
+          style={{
+            width: '100%',
+            padding: 'var(--space-3)',
+            marginBottom: 'var(--space-4)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--text-base)'
+          }}
+        />
+
+        <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: 'var(--space-3)',
+              background: 'var(--color-gray-200)',
+              color: 'var(--color-text-primary)',
+              border: 'none',
+              borderRadius: 'var(--radius-md)'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              if (groupName.trim()) {
+                onCreate(groupName.trim());
+                setGroupName('');
+              }
+            }}
+            disabled={!groupName.trim() || createBusy}
+            style={{
+              flex: 1,
+              padding: 'var(--space-3)',
+              background: createBusy ? 'var(--color-gray-400)' : 'var(--color-whatsapp-green)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)'
+            }}
+          >
+            {createBusy ? 'Creating...' : 'Create'}
+          </button>
         </div>
-      )}
-
-      {activeTab === 'my' && (
-        <div>
-          <div className="mb-6">
-            <h2 className="text-xl font-bold mb-2" style={{ margin: 0, marginBottom: 'var(--space-2)' }}>
-              My Groups
-            </h2>
-            <p className="text-gray-600 text-sm" style={{ margin: 0 }}>
-              Groups you've joined
-            </p>
-          </div>
-
-          <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
-            {myGroups.map(g => (
-              <div key={g.id} className="card" style={{
-                padding: 'var(--space-5)',
-                transition: 'all var(--transition-fast)',
-                cursor: 'pointer'
-              }}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div style={{
-                      width: '2.5rem',
-                      height: '2.5rem',
-                      borderRadius: 'var(--radius-lg)',
-                      background: `linear-gradient(135deg, var(--color-secondary), var(--color-primary))`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 'var(--text-sm)',
-                      fontWeight: '600',
-                      color: 'white',
-                      textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                    }}>
-                      #{g.id}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg" style={{ margin: 0 }}>
-                        {g.name}
-                      </h3>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => onOpen(g.id)}
-                    style={{
-                      background: 'var(--color-primary)',
-                      color: 'white'
-                    }}
-                  >
-                    Open
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {myGroups.length === 0 && (
-              <div style={{
-                textAlign: 'center',
-                padding: 'var(--space-16)',
-                color: 'var(--color-text-muted)'
-              }}>
-                <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>👥</div>
-                <div className="text-lg font-medium mb-2">No joined groups yet</div>
-                <div className="text-sm mb-4">Join a group to start chatting!</div>
-                <button
-                  onClick={() => setActiveTab('groups')}
-                  className="secondary"
-                >
-                  Browse Groups
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -348,12 +318,10 @@ export function XChatApp() {
   const { instance: fhe } = useZamaInstance();
   const signerPromise = useEthersSigner();
 
-  const [activeTab, setActiveTab] = useState<'groups' | 'create' | 'my'>('groups');
-  const [groupName, setGroupName] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [createBusy, setCreateBusy] = useState(false);
 
   const [allGroups, setAllGroups] = useState<Array<{ id: number; name: string; owner: string; createdAt: bigint; memberCount: bigint; member: boolean }>>([]);
-  const [myGroups, setMyGroups] = useState<Array<{ id: number; name: string }>>([]);
 
   const viemClient = usePublicClient() as PublicClient;
 
@@ -385,7 +353,6 @@ export function XChatApp() {
         return { id, name, owner, createdAt, memberCount, member };
       }));
       setAllGroups(list);
-      setMyGroups(list.filter(g => g.member).map(g => ({ id: g.id, name: g.name })));
     } catch {}
   }
 
@@ -396,7 +363,7 @@ export function XChatApp() {
   // Watch live events for active group
   // No live subscription here
 
-  const createGroup = async () => {
+  const createGroup = async (name: string) => {
     if (!isConnected || !address || !fhe || !signerPromise) return;
     setCreateBusy(true);
     try {
@@ -411,7 +378,7 @@ export function XChatApp() {
       buffer.addAddress(password);
       const encrypted = await buffer.encrypt();
 
-      const tx = await contract.createGroup(groupName, encrypted.handles[0], encrypted.inputProof);
+      const tx = await contract.createGroup(name, encrypted.handles[0], encrypted.inputProof);
       const rc = await tx.wait();
       let newId: number | null = null;
       try {
@@ -426,12 +393,10 @@ export function XChatApp() {
           } catch {}
         }
       } catch {}
-      setGroupName('');
+      setShowCreateModal(false);
+      await refreshGroups();
       if (newId != null) {
-        alert('Group created successfully');
         window.location.hash = `#/group/${newId}`;
-      } else {
-        alert('Group created. Opening list...');
       }
     } finally {
       setCreateBusy(false);
@@ -445,30 +410,20 @@ export function XChatApp() {
   // Detail page moved to GroupPage
 
   return (
-    <div style={{ maxWidth: '64rem', margin: '0 auto', padding: 'var(--space-4)' }}>
-      <Header />
-      <main style={{ marginTop: 'var(--space-6)' }}>
-        <div style={{ marginBottom: 'var(--space-8)' }}>
-          <h1 className="text-3xl font-bold mb-2" style={{ margin: 0, marginBottom: 'var(--space-2)' }}>
-            Welcome to XChat
-          </h1>
-          <p className="text-lg text-gray-600" style={{ margin: 0 }}>
-            Secure, encrypted group conversations powered by blockchain technology
-          </p>
-        </div>
+    <>
+      {/* Remove the main header since ChatList has its own */}
+      <ChatList
+        allGroups={allGroups}
+        onOpen={openGroup}
+        onCreateGroup={() => setShowCreateModal(true)}
+      />
 
-        <GroupList
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          allGroups={allGroups}
-          myGroups={myGroups}
-          onOpen={openGroup}
-          groupName={groupName}
-          setGroupName={setGroupName}
-          onCreate={async()=>{ await createGroup(); await refreshGroups(); }}
-          createBusy={createBusy}
-        />
-      </main>
-    </div>
+      <CreateGroupModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={createGroup}
+        createBusy={createBusy}
+      />
+    </>
   );
 }
